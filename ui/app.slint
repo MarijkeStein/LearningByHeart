@@ -1,0 +1,314 @@
+import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+component MenuBar inherits Rectangle {
+    background: #2c3e50;
+    height: 30px;
+
+    HorizontalBox {
+        padding: 5px;
+        spacing: 15px;
+
+        Text {
+            text: "File";
+            color: white;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: "Edit";
+            color: white;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: "View";
+            color: white;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: "Help";
+            color: white;
+            vertical-alignment: center;
+        }
+    }
+}
+
+//component Toolbar inherits Rectangle {
+//    background: #34495e;
+//    height: 40px;
+//
+//    HorizontalBox {
+//        padding: 5px;
+//        spacing: 10px;
+//
+//        Button {
+//            text: "New";
+//            min-width: 60px;
+//        }
+//
+//        Button {
+//            text: "Open";
+//            min-width: 60px;
+//        }
+//
+//        Button {
+//            text: "Save";
+//            min-width: 60px;
+//        }
+//
+//        Rectangle {
+//            width: 2px;
+//            background: #7f8c8d;
+//        }
+//
+//        Button {
+//            text: "Play";
+//            min-width: 60px;
+//        }
+//
+//        Button {
+//            text: "Stop";
+//            min-width: 60px;
+//        }
+//    }
+
+//}component Toolbar inherits Rectangle {
+//    background: #34495e;
+//    height: 40px;
+//
+//    HorizontalBox {
+//        padding: 5px;
+//        spacing: 10px;
+//
+//        Button {
+//            text: "New";
+//            min-width: 60px;
+//        }
+//
+//        Button {
+//            text: "Open";
+//            min-width: 60px;
+//        }
+//
+//        Button {
+//            text: "Save";
+//            min-width: 60px;
+//        }
+//
+//        Rectangle {
+//            width: 2px;
+//            background: #7f8c8d;
+//        }
+//
+//        Button {
+//            text: "Play";
+//            min-width: 60px;
+//        }
+//
+//        Button {
+//            text: "Stop";
+//            min-width: 60px;
+//        }
+//    }
+//}
+
+component MoodButton inherits Rectangle {
+    in property <string> emoji;
+    in property <string> label;
+    in property <int> mood-id;
+    callback clicked(int);
+
+    property <bool> pressed: false;
+
+    background: pressed ? #3498db : #ffffff;
+    border-radius: 12px;
+    border-width: 3px;
+    border-color: pressed ? #2980b9 : #bdc3c7;
+
+    animate background { duration: 200ms; }
+    animate border-color { duration: 200ms; }
+
+    touch-area := TouchArea {
+        clicked => {
+            root.pressed = true;
+            root.clicked(root.mood-id);
+            // Reset after animation
+            root.pressed = false;
+        }
+    }
+
+    VerticalBox {
+        alignment: center;
+        spacing: 8px;
+
+        Text {
+            text: root.emoji;
+            font-size: 48px;
+            font-family: "Noto Color Emoji";
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: root.label;
+            font-size: 16px;
+            font-weight: 600;
+            color: root.pressed ? #ffffff : #2c3e50;
+            horizontal-alignment: center;
+
+            animate color { duration: 200ms; }
+        }
+    }
+}
+
+component MoodVotingPanel inherits Rectangle {
+    callback mood-voted(int);
+
+    background: #ecf0f1;
+
+    VerticalBox {
+        alignment: center;
+        spacing: 20px;
+        padding: 30px;
+
+        Text {
+            text: "How are you feeling right now?";
+            font-size: 28px;
+            font-weight: 700;
+            color: #2c3e50;
+            horizontal-alignment: center;
+        }
+
+        // Row 1
+        HorizontalBox {
+            spacing: 15px;
+            alignment: center;
+
+            MoodButton {
+                emoji: "😊";
+                label: "Happy";
+                mood-id: 1;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+            MoodButton {
+                emoji: "😢";
+                label: "Sad";
+                mood-id: 2;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+            MoodButton {
+                emoji: "😠";
+                label: "Angry";
+                mood-id: 3;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+            MoodButton {
+                emoji: "😰";
+                label: "Anxious";
+                mood-id: 4;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+            MoodButton {
+                emoji: "😌";
+                label: "Calm";
+                mood-id: 5;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+            MoodButton {
+                emoji: "😴";
+                label: "Tired";
+                mood-id: 6;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+        }
+
+        // Row 2
+        HorizontalBox {
+            spacing: 15px;
+            alignment: center;
+
+            MoodButton {
+                emoji: "😃";
+                label: "Excited";
+                mood-id: 7;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+            MoodButton {
+                emoji: "😔";
+                label: "Depressed";
+                mood-id: 8;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+            MoodButton {
+                emoji: "😖";
+                label: "Frustrated";
+                mood-id: 9;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+            MoodButton {
+                emoji: "😨";
+                label: "Scared";
+                mood-id: 10;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+            MoodButton {
+                emoji: "😐";
+                label: "Neutral";
+                mood-id: 11;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+            MoodButton {
+                emoji: "🤔";
+                label: "Thoughtful";
+                mood-id: 12;
+                min-width: 140px;
+                min-height: 140px;
+                clicked(id) => { root.mood-voted(id); }
+            }
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Learning By Heart (LBH)";
+    preferred-width: 1280px;
+    preferred-height: 720px;
+
+    callback mood-voted(int);
+
+    VerticalBox {
+        padding: 0px;
+        spacing: 0px;
+
+        MenuBar {}
+
+        MoodVotingPanel {
+            vertical-stretch: 1;
+            mood-voted(id) => {
+                root.mood-voted(id);
+            }
+        }
+    }
+}
