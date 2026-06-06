@@ -562,6 +562,8 @@ export component AppWindow inherits Window {
     }
 
     focus-scope := FocusScope {
+        enabled: true;
+
         key-pressed(event) => {
             // Ctrl+Tab to switch to next tab (using Key enum)
             if (event.modifiers.control && !event.modifiers.shift && event.text == Key.Tab) {
