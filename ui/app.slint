@@ -1,4 +1,4 @@
-import { Button, VerticalBox, HorizontalBox, TabWidget } from "std-widgets.slint";
+import { Button, VerticalBox, HorizontalBox, TabWidget, CheckBox, GroupBox } from "std-widgets.slint";
 
 component MenuBar inherits Rectangle {
     background: #2c3e50;
@@ -78,6 +78,51 @@ component MoodButton inherits Rectangle {
             horizontal-alignment: center;
 
             animate color { duration: 200ms; }
+        }
+    }
+}
+
+component RecordingPanel inherits Rectangle {
+    in-out property <bool> video-enabled: true;
+    in-out property <bool> microphone-enabled: true;
+    in-out property <bool> heartbeat-enabled: true;
+
+    background: #f5f5f5;
+
+    VerticalBox {
+        padding: 30px;
+        spacing: 20px;
+        alignment: start;
+
+        Text {
+            text: "Recording Panel";
+            font-size: 24px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        GroupBox {
+            title: "Sensor Configuration";
+
+            VerticalBox {
+                spacing: 15px;
+                padding: 10px;
+
+                CheckBox {
+                    text: "Video Stream";
+                    checked <=> root.video-enabled;
+                }
+
+                CheckBox {
+                    text: "Microphone";
+                    checked <=> root.microphone-enabled;
+                }
+
+                CheckBox {
+                    text: "Heartbeat Sensor (RRI)";
+                    checked <=> root.heartbeat-enabled;
+                }
+            }
         }
     }
 }
@@ -220,6 +265,9 @@ export component AppWindow inherits Window {
     callback mood-voted(int);
 
     in-out property <int> current-tab-index: 0;
+    in-out property <bool> video-enabled: true;
+    in-out property <bool> microphone-enabled: true;
+    in-out property <bool> heartbeat-enabled: true;
 
     init => {
         focus-scope.focus();
@@ -260,9 +308,11 @@ export component AppWindow inherits Window {
                 }
 
                 Tab {
-                    title: "Timeline";
-                    Rectangle {
-                        background: #f5f5f5;
+                    title: "Recording Panel";
+                    RecordingPanel {
+                        video-enabled <=> root.video-enabled;
+                        microphone-enabled <=> root.microphone-enabled;
+                        heartbeat-enabled <=> root.heartbeat-enabled;
                     }
                 }
             }
