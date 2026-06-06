@@ -38,30 +38,33 @@ component MoodButton inherits Rectangle {
     in property <string> emoji;
     in property <string> label;
     in property <int> mood-id;
+    in property <bool> selected: false;
     callback clicked(int);
 
-    property <bool> pressed: false;
-
-    background: pressed ? #3498db : #ffffff;
+    background: selected ? #3498db : #ffffff;
     border-radius: 12px;
     border-width: 3px;
-    border-color: pressed ? #2980b9 : #bdc3c7;
+    border-color: selected ? #2980b9 : #bdc3c7;
+    drop-shadow-blur: selected ? 4px : 8px;
+    drop-shadow-offset-y: selected ? 2px : 4px;
+    drop-shadow-color: #00000040;
 
     animate background { duration: 200ms; }
     animate border-color { duration: 200ms; }
+    animate drop-shadow-blur, drop-shadow-offset-y { duration: 200ms; }
 
     touch-area := TouchArea {
         clicked => {
-            root.pressed = true;
             root.clicked(root.mood-id);
-            // Reset after animation
-            root.pressed = false;
         }
     }
 
     VerticalBox {
         alignment: center;
         spacing: 8px;
+        padding-top: selected ? 4px : 0px;
+
+        animate padding-top { duration: 200ms; }
 
         Text {
             text: root.emoji;
@@ -74,7 +77,7 @@ component MoodButton inherits Rectangle {
             text: root.label;
             font-size: 16px;
             font-weight: 600;
-            color: root.pressed ? #ffffff : #2c3e50;
+            color: root.selected ? #ffffff : #2c3e50;
             horizontal-alignment: center;
 
             animate color { duration: 200ms; }
@@ -86,6 +89,7 @@ component RecordButton inherits Rectangle {
     callback clicked();
 
     in property <bool> enabled: true;
+    in property <bool> is-active: false;
     property <bool> pressed: touch-area.pressed;
 
     width: 120px;
@@ -97,11 +101,11 @@ component RecordButton inherits Rectangle {
         width: parent.width;
         height: parent.height;
         border-radius: 12px;
-        drop-shadow-blur: root.pressed ? 4px : 8px;
-        drop-shadow-offset-y: root.pressed ? 2px : 4px;
+        drop-shadow-blur: (root.is-active || root.pressed) ? 4px : 8px;
+        drop-shadow-offset-y: (root.is-active || root.pressed) ? 2px : 4px;
         drop-shadow-color: #00000060;
 
-        background: root.enabled ? (root.pressed ? #c0c0c0 : #d8d8d8) : #aaaaaa;
+        background: root.enabled ? ((root.is-active || root.pressed) ? #c0c0c0 : #d8d8d8) : #b8b8b8;
 
         animate drop-shadow-blur, drop-shadow-offset-y, background { duration: 150ms; }
 
@@ -121,18 +125,18 @@ component RecordButton inherits Rectangle {
 
     // Red circle with shadow and layered lighting
     Rectangle {
-        width: 70px;
-        height: 70px;
+        width: 60px;
+        height: 60px;
         x: (parent.width - self.width) / 2;
-        y: root.pressed ? (parent.height - self.height) / 2 + 2px : (parent.height - self.height) / 2;
+        y: (root.is-active || root.pressed) ? (parent.height - self.height) / 2 + 2px : (parent.height - self.height) / 2;
         border-radius: 35px;
         drop-shadow-blur: 6px;
         drop-shadow-offset-y: 2px;
         drop-shadow-color: #00000050;
 
-        background: root.enabled ? #dd0000 : #888888;
+        background: root.enabled ? (root.is-active ? #ff0000 : #dd0000) : #888888;
 
-        animate y { duration: 150ms; }
+        animate y, background { duration: 150ms; }
 
 //        // Top highlight for spherical appearance
 //        Rectangle {
@@ -169,6 +173,7 @@ component StopButton inherits Rectangle {
     callback clicked();
 
     in property <bool> enabled: true;
+    in property <bool> is-active: false;
     property <bool> pressed: touch-area.pressed;
 
     width: 120px;
@@ -180,11 +185,11 @@ component StopButton inherits Rectangle {
         width: parent.width;
         height: parent.height;
         border-radius: 12px;
-        drop-shadow-blur: root.pressed ? 4px : 8px;
-        drop-shadow-offset-y: root.pressed ? 2px : 4px;
+        drop-shadow-blur: (root.is-active || root.pressed) ? 4px : 8px;
+        drop-shadow-offset-y: (root.is-active || root.pressed) ? 2px : 4px;
         drop-shadow-color: #00000060;
 
-        background: root.enabled ? (root.pressed ? #c0c0c0 : #d8d8d8) : #aaaaaa;
+        background: root.enabled ? ((root.is-active || root.pressed) ? #c0c0c0 : #d8d8d8) : #b8b8b8;
 
         animate drop-shadow-blur, drop-shadow-offset-y, background { duration: 150ms; }
 
@@ -207,7 +212,7 @@ component StopButton inherits Rectangle {
         width: 60px;
         height: 60px;
         x: (parent.width - self.width) / 2;
-        y: root.pressed ? (parent.height - self.height) / 2 + 2px : (parent.height - self.height) / 2;
+        y: (root.is-active || root.pressed) ? (parent.height - self.height) / 2 + 2px : (parent.height - self.height) / 2;
         border-radius: 6px;
         drop-shadow-blur: 6px;
         drop-shadow-offset-y: 2px;
@@ -309,6 +314,7 @@ component RecordingPanel inherits Rectangle {
 
                 RecordButton {
                     enabled: !root.is-recording;
+                    is-active: root.is-recording;
                     clicked => {
                         root.start-recording();
                     }
@@ -316,6 +322,7 @@ component RecordingPanel inherits Rectangle {
 
                 StopButton {
                     enabled: root.is-recording;
+                    is-active: false;
                     clicked => {
                         root.stop-recording();
                     }
@@ -358,6 +365,8 @@ component RecordingPanel inherits Rectangle {
 component MoodVotingPanel inherits Rectangle {
     callback mood-voted(int);
 
+    in-out property <int> selected-mood-id: 0;
+
     background: #ecf0f1;
 
     VerticalBox {
@@ -382,49 +391,73 @@ component MoodVotingPanel inherits Rectangle {
                 emoji: "😊";
                 label: "Happy";
                 mood-id: 1;
+                selected: root.selected-mood-id == 1;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
             MoodButton {
                 emoji: "😢";
                 label: "Sad";
                 mood-id: 2;
+                selected: root.selected-mood-id == 2;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
             MoodButton {
                 emoji: "😠";
                 label: "Angry";
                 mood-id: 3;
+                selected: root.selected-mood-id == 3;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
             MoodButton {
                 emoji: "😰";
                 label: "Anxious";
                 mood-id: 4;
+                selected: root.selected-mood-id == 4;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
             MoodButton {
                 emoji: "😌";
                 label: "Calm";
                 mood-id: 5;
+                selected: root.selected-mood-id == 5;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
             MoodButton {
                 emoji: "😴";
                 label: "Tired";
                 mood-id: 6;
+                selected: root.selected-mood-id == 6;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
         }
 
@@ -437,49 +470,73 @@ component MoodVotingPanel inherits Rectangle {
                 emoji: "😃";
                 label: "Excited";
                 mood-id: 7;
+                selected: root.selected-mood-id == 7;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
             MoodButton {
                 emoji: "😔";
                 label: "Depressed";
                 mood-id: 8;
+                selected: root.selected-mood-id == 8;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
             MoodButton {
                 emoji: "😖";
                 label: "Frustrated";
                 mood-id: 9;
+                selected: root.selected-mood-id == 9;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
             MoodButton {
                 emoji: "😨";
                 label: "Scared";
                 mood-id: 10;
+                selected: root.selected-mood-id == 10;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
             MoodButton {
                 emoji: "😐";
                 label: "Neutral";
                 mood-id: 11;
+                selected: root.selected-mood-id == 11;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
             MoodButton {
                 emoji: "🤔";
                 label: "Thoughtful";
                 mood-id: 12;
+                selected: root.selected-mood-id == 12;
                 min-width: 140px;
                 min-height: 140px;
-                clicked(id) => { root.mood-voted(id); }
+                clicked(id) => {
+                    root.selected-mood-id = id;
+                    root.mood-voted(id);
+                }
             }
         }
     }
