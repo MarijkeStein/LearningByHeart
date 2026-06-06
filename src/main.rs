@@ -121,5 +121,34 @@ fn main() -> Result<(), slint::PlatformError> {
         // TODO: Save to file or database for analysis
     });
 
+    // Connect recording callbacks
+    let app_weak = app.as_weak();
+    app.on_start_recording(move || {
+        let app = app_weak.unwrap();
+        let video = app.get_video_enabled();
+        let mic = app.get_microphone_enabled();
+        let heartbeat = app.get_heartbeat_enabled();
+
+        println!("Starting recording with:");
+        println!("  - Video: {}", video);
+        println!("  - Microphone: {}", mic);
+        println!("  - Heartbeat: {}", heartbeat);
+
+        app.set_is_recording(true);
+
+        // TODO: Initialize sensor streams based on enabled flags
+    });
+
+    let app_weak = app.as_weak();
+    app.on_stop_recording(move || {
+        let app = app_weak.unwrap();
+
+        println!("Stopping recording");
+
+        app.set_is_recording(false);
+
+        // TODO: Stop sensor streams and save recorded data
+    });
+
     app.run()
 }

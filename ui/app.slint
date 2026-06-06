@@ -82,16 +82,74 @@ component MoodButton inherits Rectangle {
     }
 }
 
+component RecordButton inherits Rectangle {
+    callback clicked();
+
+    in property <bool> enabled: true;
+
+    width: 120px;
+    height: 120px;
+    background: enabled ? (touch-area.has-hover ? #cccccc : #bbbbbb) : #999999;
+    border-radius: 12px;
+
+    animate background { duration: 200ms; }
+
+    touch-area := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+
+    Rectangle {
+        width: 70px;
+        height: 70px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: 35px;
+        background: root.enabled ? #ff0000 : #ee0000;
+    }
+}
+
+component StopButton inherits Rectangle {
+    callback clicked();
+
+    in property <bool> enabled: true;
+
+    width: 120px;
+    height: 120px;
+    background: enabled ? (touch-area.has-hover ? #cccccc : #bbbbbb) : #999999;
+    border-radius: 12px;
+
+    animate background { duration: 200ms; }
+
+    touch-area := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+
+    Rectangle {
+        width: 60px;
+        height: 60px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: 0px;
+        background: root.enabled ? #000000 : #333333;
+    }
+}
+
 component RecordingPanel inherits Rectangle {
     in-out property <bool> video-enabled: true;
     in-out property <bool> microphone-enabled: true;
     in-out property <bool> heartbeat-enabled: true;
+    in-out property <bool> is-recording: false;
+
+    callback start-recording();
+    callback stop-recording();
 
     background: #f5f5f5;
 
     VerticalBox {
         padding: 30px;
-        spacing: 20px;
+        spacing: 30px;
         alignment: start;
 
         Text {
@@ -111,16 +169,73 @@ component RecordingPanel inherits Rectangle {
                 CheckBox {
                     text: "Video Stream";
                     checked <=> root.video-enabled;
+                    enabled: !root.is-recording;
                 }
 
                 CheckBox {
                     text: "Microphone";
                     checked <=> root.microphone-enabled;
+                    enabled: !root.is-recording;
                 }
 
                 CheckBox {
                     text: "Heartbeat Sensor (RRI)";
                     checked <=> root.heartbeat-enabled;
+                    enabled: !root.is-recording;
+                }
+            }
+        }
+
+        GroupBox {
+            title: "Recording Controls";
+
+            HorizontalBox {
+                alignment: center;
+                spacing: 30px;
+                padding: 20px;
+
+                RecordButton {
+                    enabled: !root.is-recording;
+                    clicked => {
+                        root.start-recording();
+                    }
+                }
+
+                StopButton {
+                    enabled: root.is-recording;
+                    clicked => {
+                        root.stop-recording();
+                    }
+                }
+            }
+        }
+
+        if root.is-recording : Rectangle {
+            height: 60px;
+            background: #ffebee;
+            border-radius: 8px;
+            border-width: 2px;
+            border-color: #e53935;
+
+            HorizontalBox {
+                padding: 15px;
+                spacing: 10px;
+                alignment: center;
+
+                Rectangle {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 6px;
+                    background: #e53935;
+
+                    animate background { duration: 500ms; easing: ease-in-out; iteration-count: -1; }
+                }
+
+                Text {
+                    text: "Recording in progress...";
+                    font-size: 18px;
+                    font-weight: 600;
+                    color: #c62828;
                 }
             }
         }
@@ -263,11 +378,14 @@ export component AppWindow inherits Window {
     preferred-height: 720px;
 
     callback mood-voted(int);
+    callback start-recording();
+    callback stop-recording();
 
     in-out property <int> current-tab-index: 0;
     in-out property <bool> video-enabled: true;
     in-out property <bool> microphone-enabled: true;
     in-out property <bool> heartbeat-enabled: true;
+    in-out property <bool> is-recording: false;
 
     init => {
         focus-scope.focus();
@@ -313,6 +431,13 @@ export component AppWindow inherits Window {
                         video-enabled <=> root.video-enabled;
                         microphone-enabled <=> root.microphone-enabled;
                         heartbeat-enabled <=> root.heartbeat-enabled;
+                        is-recording <=> root.is-recording;
+                        start-recording => {
+                            root.start-recording();
+                        }
+                        stop-recording => {
+                            root.stop-recording();
+                        }
                     }
                 }
             }
