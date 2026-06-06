@@ -280,26 +280,68 @@ component RecordingPanel inherits Rectangle {
         GroupBox {
             title: "Sensor Configuration";
 
-            VerticalBox {
+            GridLayout {
                 spacing: 15px;
                 padding: 10px;
 
-                CheckBox {
-                    text: "Video Stream";
-                    checked <=> root.video-enabled;
-                    enabled: !root.is-recording;
+                Row {
+                    CheckBox {
+                        text: "Video Stream";
+                        checked <=> root.video-enabled;
+                        enabled: !root.is-recording;
+                        col: 0;
+                    }
+
+                    HorizontalBox {
+                        alignment: start;
+                        col: 1;
+
+                        Rectangle {
+                            background: black;
+                            width: 160px;
+                            height: 90px;
+                        }
+                    }
                 }
 
-                CheckBox {
-                    text: "Microphone";
-                    checked <=> root.microphone-enabled;
-                    enabled: !root.is-recording;
+                Row {
+                    CheckBox {
+                        text: "Microphone";
+                        checked <=> root.microphone-enabled;
+                        enabled: !root.is-recording;
+                        col: 0;
+                    }
+
+                    HorizontalBox {
+                        alignment: start;
+                        col: 1;
+
+                        Rectangle {
+                            background: black;
+                            width: 160px;
+                            height: 90px;
+                        }
+                    }
                 }
 
-                CheckBox {
-                    text: "Heartbeat Sensor (RRI)";
-                    checked <=> root.heartbeat-enabled;
-                    enabled: !root.is-recording;
+                Row {
+                    CheckBox {
+                        text: "Heartbeat Sensor (RRI)";
+                        checked <=> root.heartbeat-enabled;
+                        enabled: !root.is-recording;
+                        col: 0;
+                    }
+
+                    HorizontalBox {
+                        alignment: start;
+                        col: 1;
+
+                        Rectangle {
+                            background: black;
+                            width: 160px;
+                            height: 90px;
+                        }
+                    }
                 }
             }
         }
