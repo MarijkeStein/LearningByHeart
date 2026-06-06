@@ -1,0 +1,18 @@
+🤩 Excited
+🥰 In Love
+🥳 Partying
+😀 Happy
+😐 Neutral
+🥱 Tired
+
+🤯 Exploding
+😨 Fearful
+😔 Sad
+🫩 Unwell
+🤢 Sick
+🚫 None/Other
+
+😰 Anxious
+😌 Calm
+😠 Angry
+😖 Frustrated
