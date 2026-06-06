@@ -86,26 +86,82 @@ component RecordButton inherits Rectangle {
     callback clicked();
 
     in property <bool> enabled: true;
+    property <bool> pressed: touch-area.pressed;
 
     width: 120px;
     height: 120px;
-    background: enabled ? (touch-area.has-hover ? #cccccc : #bbbbbb) : #999999;
-    border-radius: 12px;
+    background: transparent;
 
-    animate background { duration: 200ms; }
+    // Button base with shadow
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: 12px;
+        drop-shadow-blur: root.pressed ? 4px : 8px;
+        drop-shadow-offset-y: root.pressed ? 2px : 4px;
+        drop-shadow-color: #00000060;
+
+        background: root.enabled ? (root.pressed ? #c0c0c0 : #d8d8d8) : #aaaaaa;
+
+        animate drop-shadow-blur, drop-shadow-offset-y, background { duration: 150ms; }
+
+//        // Top gradient layer for 3D effect
+//        Rectangle {
+//            width: parent.width;
+//            height: parent.height / 2;
+//            border-radius: 12px;
+//            background: #ffffff30;
+//        }
+    }
 
     touch-area := TouchArea {
         enabled: root.enabled;
         clicked => { root.clicked(); }
     }
 
+    // Red circle with shadow and layered lighting
     Rectangle {
         width: 70px;
         height: 70px;
         x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+        y: root.pressed ? (parent.height - self.height) / 2 + 2px : (parent.height - self.height) / 2;
         border-radius: 35px;
-        background: root.enabled ? #ff0000 : #ee0000;
+        drop-shadow-blur: 6px;
+        drop-shadow-offset-y: 2px;
+        drop-shadow-color: #00000050;
+
+        background: root.enabled ? #dd0000 : #888888;
+
+        animate y { duration: 150ms; }
+
+//        // Top highlight for spherical appearance
+//        Rectangle {
+//            width: parent.width;
+//            height: parent.height / 2.5;
+//            y: 5px;
+//            border-radius: 35px;
+//            background: #ff4444;
+//        }
+//
+//        // Glossy highlight
+//        Rectangle {
+//            width: 25px;
+//            height: 25px;
+//            x: 12px;
+//            y: 10px;
+//            border-radius: 15px;
+//            background: #ffffff80;
+//        }
+//
+//        // Bottom shadow for depth
+//        Rectangle {
+//            width: parent.width - 10px;
+//            height: 15px;
+//            x: 5px;
+//            y: parent.height - 18px;
+//            border-radius: 20px;
+//            background: #00000030;
+//        }
     }
 }
 
@@ -113,26 +169,83 @@ component StopButton inherits Rectangle {
     callback clicked();
 
     in property <bool> enabled: true;
+    property <bool> pressed: touch-area.pressed;
 
     width: 120px;
     height: 120px;
-    background: enabled ? (touch-area.has-hover ? #cccccc : #bbbbbb) : #999999;
-    border-radius: 12px;
+    background: transparent;
 
-    animate background { duration: 200ms; }
+    // Button base with shadow
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: 12px;
+        drop-shadow-blur: root.pressed ? 4px : 8px;
+        drop-shadow-offset-y: root.pressed ? 2px : 4px;
+        drop-shadow-color: #00000060;
+
+        background: root.enabled ? (root.pressed ? #c0c0c0 : #d8d8d8) : #aaaaaa;
+
+        animate drop-shadow-blur, drop-shadow-offset-y, background { duration: 150ms; }
+
+//        // Top gradient layer for 3D effect
+//        Rectangle {
+//            width: parent.width;
+//            height: parent.height / 2;
+//            border-radius: 12px;
+//            background: #ffffff30;
+//        }
+    }
 
     touch-area := TouchArea {
         enabled: root.enabled;
         clicked => { root.clicked(); }
     }
 
+    // Black square with shadow and layered lighting
     Rectangle {
         width: 60px;
         height: 60px;
         x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        border-radius: 0px;
-        background: root.enabled ? #000000 : #333333;
+        y: root.pressed ? (parent.height - self.height) / 2 + 2px : (parent.height - self.height) / 2;
+        border-radius: 6px;
+        drop-shadow-blur: 6px;
+        drop-shadow-offset-y: 2px;
+        drop-shadow-color: #00000050;
+
+        background: root.enabled ? #1a1a1a : #666666;
+
+        animate y { duration: 150ms; }
+
+//        // Top highlight for 3D appearance
+//        Rectangle {
+//            width: parent.width - 8px;
+//            height: parent.height / 3;
+//            x: 4px;
+//            y: 4px;
+//            border-radius: 4px;
+//            background: #333333;
+//        }
+//
+//        // Glossy highlight
+//        Rectangle {
+//            width: 20px;
+//            height: 20px;
+//            x: 8px;
+//            y: 8px;
+//            border-radius: 3px;
+//            background: #ffffff40;
+//        }
+//
+//        // Bottom shadow for depth
+//        Rectangle {
+//            width: parent.width - 8px;
+//            height: 12px;
+//            x: 4px;
+//            y: parent.height - 14px;
+//            border-radius: 3px;
+//            background: #00000040;
+//        }
     }
 }
 
