@@ -202,27 +202,45 @@ fn main() -> Result<(), slint::PlatformError> {
         // TODO: Stop sensor streams and save recorded data
     });
 
-    // Initialize webcam preview
+    // Initialize webcam preview after a short delay to ensure event loop is running
     let app_weak = app.as_weak();
-    std::thread::spawn(move || {
-        println!("Camera thread started");
+    let timer = slint::Timer::single_shot(std::time::Duration::from_millis(100), move || {
+        let app_weak_for_thread = app_weak.clone();
+        std::thread::spawn(move || {
+            println!("Camera thread started");
 
-        // Try to open the webcam
-        let camera_result = Camera::new(
-            CameraIndex::Index(0),
-            RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate),
-        );
+            // Try to open the webcam
+            let camera_result = Camera::new(
+                CameraIndex::Index(0),
+                RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate),
+            );
 
-        let mut camera = match camera_result {
-            Ok(cam) => {
-                println!("Webcam initialized successfully");
-                cam
-            }
-            Err(e) => {
-                eprintln!("Failed to initialize webcam: {}", e);
+            let mut camera = match camera_result {
+                Ok(cam) => {
+                    println!("Webcam initialized successfully");
+                    cam
+                }
+                Err(e) => {
+                    eprintln!("Failed to initialize webcam: {}", e);
+
+                    // Display crossed-out rectangle placeholder on UI thread
+                    let app_weak_clone = app_weak_for_thread.clone();
+                    slint::invoke_from_event_loop(move || {
+                        if let Some(app) = app_weak_clone.upgrade() {
+                            let no_camera_img = create_no_camera_image(160, 90);
+                            app.set_webcam_preview(no_camera_img);
+                        }
+                    }).ok();
+                    return;
+                }
+            };
+
+            // Start the camera stream
+            if let Err(e) = camera.open_stream() {
+                eprintln!("Failed to open camera stream: {}", e);
 
                 // Display crossed-out rectangle placeholder on UI thread
-                let app_weak_clone = app_weak.clone();
+                let app_weak_clone = app_weak_for_thread.clone();
                 slint::invoke_from_event_loop(move || {
                     if let Some(app) = app_weak_clone.upgrade() {
                         let no_camera_img = create_no_camera_image(160, 90);
@@ -231,72 +249,59 @@ fn main() -> Result<(), slint::PlatformError> {
                 }).ok();
                 return;
             }
-        };
 
-        // Start the camera stream
-        if let Err(e) = camera.open_stream() {
-            eprintln!("Failed to open camera stream: {}", e);
+            println!("Camera stream opened, starting capture loop");
 
-            // Display crossed-out rectangle placeholder on UI thread
-            let app_weak_clone = app_weak.clone();
-            slint::invoke_from_event_loop(move || {
-                if let Some(app) = app_weak_clone.upgrade() {
-                    let no_camera_img = create_no_camera_image(160, 90);
-                    app.set_webcam_preview(no_camera_img);
-                }
-            }).ok();
-            return;
-        }
+            // Capture frames continuously
+            loop {
+                match camera.frame() {
+                    Ok(frame) => {
+                        let decoded = match frame.decode_image::<RgbFormat>() {
+                            Ok(img) => img,
+                            Err(e) => {
+                                eprintln!("Failed to decode camera frame: {}", e);
+                                continue; // Skip this frame and continue recording
+                            }
+                        };
+                        let width = decoded.width();
+                        let height = decoded.height();
 
-        println!("Camera stream opened, starting capture loop");
+                        // Get raw pixel data
+                        let pixel_data = decoded.into_raw();
 
-        // Capture frames continuously
-        loop {
-            match camera.frame() {
-                Ok(frame) => {
-                    let decoded = match frame.decode_image::<RgbFormat>() {
-                        Ok(img) => img,
-                        Err(e) => {
-                            eprintln!("Failed to decode camera frame: {}", e);
-                            continue; // Skip this frame and continue recording
+                        // Update the UI from event loop thread
+                        let app_weak_clone = app_weak_for_thread.clone();
+                        if let Err(e) = slint::invoke_from_event_loop(move || {
+                            if let Some(app) = app_weak_clone.upgrade() {
+                                let buffer = SharedPixelBuffer::<Rgb8Pixel>::clone_from_slice(
+                                    &pixel_data,
+                                    width,
+                                    height,
+                                );
+                                let image = Image::from_rgb8(buffer);
+                                app.set_webcam_preview(image);
+                            }
+                        }) {
+                            eprintln!("Failed to invoke from event loop: {:?}", e);
+                            break; // Event loop is gone, stop thread
                         }
-                    };
-                    let width = decoded.width();
-                    let height = decoded.height();
-
-                    // Get raw pixel data
-                    let pixel_data = decoded.into_raw();
-
-                    // Update the UI from event loop thread
-                    let app_weak_clone = app_weak.clone();
-                    slint::invoke_from_event_loop(move || {
-                        if let Some(app) = app_weak_clone.upgrade() {
-                            let buffer = SharedPixelBuffer::<Rgb8Pixel>::clone_from_slice(
-                                &pixel_data,
-                                width,
-                                height,
-                            );
-                            let image = Image::from_rgb8(buffer);
-                            app.set_webcam_preview(image);
-                        }
-                    }).ok();
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to capture frame: {}", e);
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                        continue;
+                    }
                 }
-                Err(e) => {
-                    eprintln!("Failed to capture frame: {}", e);
-                }
-            }
 
-            // Check if app is still alive
-            if app_weak.upgrade().is_none() {
-                println!("App closed, stopping camera thread");
-                break;
+                // Limit to ~30 fps
+                std::thread::sleep(std::time::Duration::from_millis(33));
             }
-
-            // Limit to ~30 fps
-            std::thread::sleep(std::time::Duration::from_millis(33));
-        }
-        println!("Camera thread exiting");
+            println!("Camera thread exiting");
+        });
     });
+
+    // Timer is kept alive by being in scope
+    let _timer = timer;
 
     app.run()
 }
