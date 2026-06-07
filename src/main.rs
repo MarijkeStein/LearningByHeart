@@ -252,8 +252,10 @@ fn main() -> Result<(), slint::PlatformError> {
 
             println!("Camera stream opened, starting capture loop");
 
-            // Capture frames continuously
+            // Capture frames continuously with minimal latency
             loop {
+                let frame_start = std::time::Instant::now();
+
                 match camera.frame() {
                     Ok(frame) => {
                         let decoded = match frame.decode_image::<RgbFormat>() {
@@ -285,6 +287,13 @@ fn main() -> Result<(), slint::PlatformError> {
                             eprintln!("Failed to invoke from event loop: {:?}", e);
                             break; // Event loop is gone, stop thread
                         }
+
+                        // Sleep only for remaining time to maintain target FPS
+                        let elapsed = frame_start.elapsed();
+                        let target_frame_time = std::time::Duration::from_millis(33); // ~30 fps
+                        if elapsed < target_frame_time {
+                            std::thread::sleep(target_frame_time - elapsed);
+                        }
                     }
                     Err(e) => {
                         eprintln!("Failed to capture frame: {}", e);
@@ -292,9 +301,6 @@ fn main() -> Result<(), slint::PlatformError> {
                         continue;
                     }
                 }
-
-                // Limit to ~30 fps
-                std::thread::sleep(std::time::Duration::from_millis(33));
             }
             println!("Camera thread exiting");
         });
