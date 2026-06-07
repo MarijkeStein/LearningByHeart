@@ -258,10 +258,18 @@ fn main() -> Result<(), slint::PlatformError> {
             let processing = Arc::new(AtomicBool::new(false));
 
             // Capture frames continuously with minimal latency and frame skipping
+            let mut frame_counter = 0;
             let mut frames_skipped = 0;
             loop {
                 match camera.frame() {
                     Ok(frame) => {
+                        frame_counter += 1;
+
+                        // Display every other frame to reduce UI load and improve responsiveness
+                        if frame_counter % 2 != 0 {
+                            continue;
+                        }
+
                         // Skip this frame if the UI is still processing the previous one
                         if processing.load(Ordering::Relaxed) {
                             frames_skipped += 1;
