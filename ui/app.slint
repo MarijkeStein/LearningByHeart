@@ -259,6 +259,7 @@ component RecordingPanel inherits Rectangle {
     in-out property <bool> microphone-enabled: true;
     in-out property <bool> heartbeat-enabled: true;
     in-out property <bool> is-recording: false;
+    in-out property <image> webcam-preview;
 
     callback start-recording();
     callback stop-recording();
@@ -296,10 +297,11 @@ component RecordingPanel inherits Rectangle {
                         alignment: start;
                         col: 1;
 
-                        Rectangle {
-                            background: black;
+                        Image {
+                            source: root.webcam-preview;
                             width: 160px;
                             height: 90px;
+                            image-fit: cover;
                         }
                     }
                 }
@@ -598,6 +600,7 @@ export component AppWindow inherits Window {
     in-out property <bool> microphone-enabled: true;
     in-out property <bool> heartbeat-enabled: true;
     in-out property <bool> is-recording: false;
+    in-out property <image> webcam-preview;
 
     init => {
         focus-scope.focus();
@@ -646,6 +649,7 @@ export component AppWindow inherits Window {
                         microphone-enabled <=> root.microphone-enabled;
                         heartbeat-enabled <=> root.heartbeat-enabled;
                         is-recording <=> root.is-recording;
+                        webcam-preview <=> root.webcam-preview;
                         start-recording => {
                             root.start-recording();
                         }

@@ -1,5 +1,57 @@
 slint::include_modules!();
 use muda::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use nokhwa::pixel_format::RgbFormat;
+use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
+use nokhwa::Camera;
+use slint::{Image, SharedPixelBuffer, Rgb8Pixel};
+
+// Creates a crossed-out rectangle placeholder image for when camera is unavailable
+fn create_no_camera_image(width: u32, height: u32) -> Image {
+    let mut pixel_data = vec![0u8; (width * height * 3) as usize];
+
+    // Fill with dark gray background
+    for chunk in pixel_data.chunks_mut(3) {
+        chunk[0] = 60;  // R
+        chunk[1] = 60;  // G
+        chunk[2] = 60;  // B
+    }
+
+    let border_width = 3;
+    let cross_width = 4;
+
+    // Draw border rectangle
+    for y in 0..height {
+        for x in 0..width {
+            let is_border = x < border_width || x >= width - border_width ||
+                          y < border_width || y >= height - border_width;
+
+            if is_border {
+                let idx = ((y * width + x) * 3) as usize;
+                pixel_data[idx] = 180;      // R
+                pixel_data[idx + 1] = 180;  // G
+                pixel_data[idx + 2] = 180;  // B
+            }
+        }
+    }
+
+    // Draw diagonal cross (X)
+    for y in 0..height {
+        for x in 0..width {
+            let diag1 = (x as i32 - y as i32).abs() < cross_width as i32;
+            let diag2 = (x as i32 - (height as i32 - 1 - y as i32)).abs() < cross_width as i32;
+
+            if diag1 || diag2 {
+                let idx = ((y * width + x) * 3) as usize;
+                pixel_data[idx] = 200;      // R
+                pixel_data[idx + 1] = 60;   // G (darker for red-ish cross)
+                pixel_data[idx + 2] = 60;   // B
+            }
+        }
+    }
+
+    let buffer = SharedPixelBuffer::<Rgb8Pixel>::clone_from_slice(&pixel_data, width, height);
+    Image::from_rgb8(buffer)
+}
 
 // Shared menu creation logic for both platforms
 fn create_menu() -> (Menu, muda::MenuId) {
@@ -148,6 +200,102 @@ fn main() -> Result<(), slint::PlatformError> {
         app.set_is_recording(false);
 
         // TODO: Stop sensor streams and save recorded data
+    });
+
+    // Initialize webcam preview
+    let app_weak = app.as_weak();
+    std::thread::spawn(move || {
+        println!("Camera thread started");
+
+        // Try to open the webcam
+        let camera_result = Camera::new(
+            CameraIndex::Index(0),
+            RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate),
+        );
+
+        let mut camera = match camera_result {
+            Ok(cam) => {
+                println!("Webcam initialized successfully");
+                cam
+            }
+            Err(e) => {
+                eprintln!("Failed to initialize webcam: {}", e);
+
+                // Display crossed-out rectangle placeholder on UI thread
+                let app_weak_clone = app_weak.clone();
+                slint::invoke_from_event_loop(move || {
+                    if let Some(app) = app_weak_clone.upgrade() {
+                        let no_camera_img = create_no_camera_image(160, 90);
+                        app.set_webcam_preview(no_camera_img);
+                    }
+                }).ok();
+                return;
+            }
+        };
+
+        // Start the camera stream
+        if let Err(e) = camera.open_stream() {
+            eprintln!("Failed to open camera stream: {}", e);
+
+            // Display crossed-out rectangle placeholder on UI thread
+            let app_weak_clone = app_weak.clone();
+            slint::invoke_from_event_loop(move || {
+                if let Some(app) = app_weak_clone.upgrade() {
+                    let no_camera_img = create_no_camera_image(160, 90);
+                    app.set_webcam_preview(no_camera_img);
+                }
+            }).ok();
+            return;
+        }
+
+        println!("Camera stream opened, starting capture loop");
+
+        // Capture frames continuously
+        loop {
+            match camera.frame() {
+                Ok(frame) => {
+                    let decoded = match frame.decode_image::<RgbFormat>() {
+                        Ok(img) => img,
+                        Err(e) => {
+                            eprintln!("Failed to decode camera frame: {}", e);
+                            continue; // Skip this frame and continue recording
+                        }
+                    };
+                    let width = decoded.width();
+                    let height = decoded.height();
+
+                    // Get raw pixel data
+                    let pixel_data = decoded.into_raw();
+
+                    // Update the UI from event loop thread
+                    let app_weak_clone = app_weak.clone();
+                    slint::invoke_from_event_loop(move || {
+                        if let Some(app) = app_weak_clone.upgrade() {
+                            let buffer = SharedPixelBuffer::<Rgb8Pixel>::clone_from_slice(
+                                &pixel_data,
+                                width,
+                                height,
+                            );
+                            let image = Image::from_rgb8(buffer);
+                            app.set_webcam_preview(image);
+                        }
+                    }).ok();
+                }
+                Err(e) => {
+                    eprintln!("Failed to capture frame: {}", e);
+                }
+            }
+
+            // Check if app is still alive
+            if app_weak.upgrade().is_none() {
+                println!("App closed, stopping camera thread");
+                break;
+            }
+
+            // Limit to ~30 fps
+            std::thread::sleep(std::time::Duration::from_millis(33));
+        }
+        println!("Camera thread exiting");
     });
 
     app.run()

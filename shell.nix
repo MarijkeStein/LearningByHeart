@@ -10,6 +10,7 @@ let
     freetype
     gdk-pixbuf
     glib
+    glibc
     gst_all_1.gstreamer
     gst_all_1.gst-plugins-base
     gtk3
@@ -24,6 +25,10 @@ let
     xorg.libXcursor
     xorg.libXrandr
     xorg.libXi
+    # Webcam dependencies
+    libclang
+    linuxHeaders
+    v4l-utils
   ];
 
   # Helper function to safely read the .dev attribute, falling back to the base package
@@ -45,6 +50,8 @@ pkgs.mkShell {
   shellHook = ''
     export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPath "lib/pkgconfig" (map getDev buildDeps)}"
     export LD_LIBRARY_PATH="/run/opengl-driver/lib:${pkgs.lib.makeLibraryPath buildDeps}:$LD_LIBRARY_PATH"
+    export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+    export BINDGEN_EXTRA_CLANG_ARGS="-I${pkgs.glibc.dev}/include -I${pkgs.linuxHeaders}/include"
 
     # Create a fontconfig that includes both system fonts and emoji fonts
     export FONTCONFIG_FILE="${pkgs.makeFontsConf {
