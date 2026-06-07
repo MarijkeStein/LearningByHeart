@@ -4,6 +4,8 @@ use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
 use nokhwa::Camera;
 use slint::{Image, SharedPixelBuffer, Rgb8Pixel};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 // Creates a crossed-out rectangle placeholder image for when camera is unavailable
 fn create_no_camera_image(width: u32, height: u32) -> Image {
@@ -252,17 +254,28 @@ fn main() -> Result<(), slint::PlatformError> {
 
             println!("Camera stream opened, starting capture loop");
 
-            // Capture frames continuously with minimal latency
-            loop {
-                let frame_start = std::time::Instant::now();
+            // Use atomic flag to track if UI is still processing previous frame
+            let processing = Arc::new(AtomicBool::new(false));
 
+            // Capture frames continuously with minimal latency and frame skipping
+            let mut frames_skipped = 0;
+            loop {
                 match camera.frame() {
                     Ok(frame) => {
+                        // Skip this frame if the UI is still processing the previous one
+                        if processing.load(Ordering::Relaxed) {
+                            frames_skipped += 1;
+                            if frames_skipped % 10 == 0 {
+                                println!("Skipped {} frames (UI thread busy)", frames_skipped);
+                            }
+                            continue;
+                        }
+
                         let decoded = match frame.decode_image::<RgbFormat>() {
                             Ok(img) => img,
                             Err(e) => {
                                 eprintln!("Failed to decode camera frame: {}", e);
-                                continue; // Skip this frame and continue recording
+                                continue;
                             }
                         };
                         let width = decoded.width();
@@ -271,8 +284,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         // Get raw pixel data
                         let pixel_data = decoded.into_raw();
 
+                        // Mark as processing
+                        processing.store(true, Ordering::Relaxed);
+
                         // Update the UI from event loop thread
                         let app_weak_clone = app_weak_for_thread.clone();
+                        let processing_clone = processing.clone();
                         if let Err(e) = slint::invoke_from_event_loop(move || {
                             if let Some(app) = app_weak_clone.upgrade() {
                                 let buffer = SharedPixelBuffer::<Rgb8Pixel>::clone_from_slice(
@@ -283,17 +300,14 @@ fn main() -> Result<(), slint::PlatformError> {
                                 let image = Image::from_rgb8(buffer);
                                 app.set_webcam_preview(image);
                             }
+                            // Mark as done processing
+                            processing_clone.store(false, Ordering::Relaxed);
                         }) {
                             eprintln!("Failed to invoke from event loop: {:?}", e);
-                            break; // Event loop is gone, stop thread
+                            break;
                         }
 
-                        // Sleep only for remaining time to maintain target FPS
-                        let elapsed = frame_start.elapsed();
-                        let target_frame_time = std::time::Duration::from_millis(33); // ~30 fps
-                        if elapsed < target_frame_time {
-                            std::thread::sleep(target_frame_time - elapsed);
-                        }
+                        // No sleep - capture as fast as possible and let frame skipping handle rate limiting
                     }
                     Err(e) => {
                         eprintln!("Failed to capture frame: {}", e);
