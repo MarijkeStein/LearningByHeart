@@ -1,39 +1,5 @@
 import { Button, VerticalBox, HorizontalBox, TabWidget, CheckBox, GroupBox } from "std-widgets.slint";
 
-//component MenuBar inherits Rectangle {
-//    background: #2c3e50;
-//    height: 30px;
-//
-//    HorizontalBox {
-//        padding: 5px;
-//        spacing: 15px;
-//
-//        Text {
-//            text: "File";
-//            color: white;
-//            vertical-alignment: center;
-//        }
-//
-//        Text {
-//            text: "Edit";
-//            color: white;
-//            vertical-alignment: center;
-//        }
-//
-//        Text {
-//            text: "View";
-//            color: white;
-//            vertical-alignment: center;
-//        }
-//
-//        Text {
-//            text: "Help";
-//            color: white;
-//            vertical-alignment: center;
-//        }
-//    }
-//}
-
 component MoodButton inherits Rectangle {
     in property <string> emoji;
     in property <string> label;
@@ -108,14 +74,6 @@ component RecordButton inherits Rectangle {
         background: root.enabled ? ((root.is-active || root.pressed) ? #c0c0c0 : #d8d8d8) : #b8b8b8;
 
         animate drop-shadow-blur, drop-shadow-offset-y, background { duration: 150ms; }
-
-//        // Top gradient layer for 3D effect
-//        Rectangle {
-//            width: parent.width;
-//            height: parent.height / 2;
-//            border-radius: 12px;
-//            background: #ffffff30;
-//        }
     }
 
     touch-area := TouchArea {
@@ -123,7 +81,6 @@ component RecordButton inherits Rectangle {
         clicked => { root.clicked(); }
     }
 
-    // Red circle with shadow and layered lighting
     Rectangle {
         width: 60px;
         height: 60px;
@@ -137,35 +94,6 @@ component RecordButton inherits Rectangle {
         background: root.enabled ? (root.is-active ? #ff0000 : #dd0000) : #888888;
 
         animate y, background { duration: 150ms; }
-
-//        // Top highlight for spherical appearance
-//        Rectangle {
-//            width: parent.width;
-//            height: parent.height / 2.5;
-//            y: 5px;
-//            border-radius: 35px;
-//            background: #ff4444;
-//        }
-//
-//        // Glossy highlight
-//        Rectangle {
-//            width: 25px;
-//            height: 25px;
-//            x: 12px;
-//            y: 10px;
-//            border-radius: 15px;
-//            background: #ffffff80;
-//        }
-//
-//        // Bottom shadow for depth
-//        Rectangle {
-//            width: parent.width - 10px;
-//            height: 15px;
-//            x: 5px;
-//            y: parent.height - 18px;
-//            border-radius: 20px;
-//            background: #00000030;
-//        }
     }
 }
 
@@ -192,14 +120,6 @@ component StopButton inherits Rectangle {
         background: root.enabled ? ((root.is-active || root.pressed) ? #c0c0c0 : #d8d8d8) : #b8b8b8;
 
         animate drop-shadow-blur, drop-shadow-offset-y, background { duration: 150ms; }
-
-//        // Top gradient layer for 3D effect
-//        Rectangle {
-//            width: parent.width;
-//            height: parent.height / 2;
-//            border-radius: 12px;
-//            background: #ffffff30;
-//        }
     }
 
     touch-area := TouchArea {
@@ -221,36 +141,6 @@ component StopButton inherits Rectangle {
         background: root.enabled ? #1a1a1a : #666666;
 
         animate y { duration: 150ms; }
-
-//        // Top highlight for 3D appearance
-//        Rectangle {
-//            width: parent.width - 8px;
-//            height: parent.height / 3;
-//            x: 4px;
-//            y: 4px;
-//            border-radius: 4px;
-//            background: #333333;
-//        }
-//
-//        // Glossy highlight
-//        Rectangle {
-//            width: 20px;
-//            height: 20px;
-//            x: 8px;
-//            y: 8px;
-//            border-radius: 3px;
-//            background: #ffffff40;
-//        }
-//
-//        // Bottom shadow for depth
-//        Rectangle {
-//            width: parent.width - 8px;
-//            height: 12px;
-//            x: 4px;
-//            y: parent.height - 14px;
-//            border-radius: 3px;
-//            background: #00000040;
-//        }
     }
 }
 
