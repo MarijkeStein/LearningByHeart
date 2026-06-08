@@ -176,16 +176,9 @@ component RecordingPanel inherits Rectangle {
                 padding: 10px;
 
                 Row {
-                    CheckBox {
-                        text: "Video Stream";
-                        checked <=> root.video-enabled;
-                        enabled: !root.is-recording;
-                        col: 0;
-                    }
-
                     HorizontalBox {
                         alignment: start;
-                        col: 1;
+                        col: 0;
 
                         Image {
                             source: root.webcam-preview;
@@ -194,45 +187,50 @@ component RecordingPanel inherits Rectangle {
                             image-fit: cover;
                         }
                     }
+
+                    HorizontalBox {
+                        alignment: start;
+                        col: 1;
+
+                        Rectangle {
+                            background: black;
+                            width: 160px;
+                            height: 90px;
+                        }
+                    }
+
+                    HorizontalBox {
+                        alignment: start;
+                        col: 2;
+
+                        Rectangle {
+                            background: black;
+                            width: 160px;
+                            height: 90px;
+                        }
+                    }
                 }
 
                 Row {
+                    CheckBox {
+                        text: "Video Stream";
+                        checked <=> root.video-enabled;
+                        enabled: !root.is-recording;
+                        col: 0;
+                    }
+
                     CheckBox {
                         text: "Microphone";
                         checked <=> root.microphone-enabled;
                         enabled: !root.is-recording;
-                        col: 0;
-                    }
-
-                    HorizontalBox {
-                        alignment: start;
                         col: 1;
-
-                        Rectangle {
-                            background: black;
-                            width: 160px;
-                            height: 90px;
-                        }
                     }
-                }
 
-                Row {
                     CheckBox {
                         text: "Heartbeat Sensor (RRI)";
                         checked <=> root.heartbeat-enabled;
                         enabled: !root.is-recording;
-                        col: 0;
-                    }
-
-                    HorizontalBox {
-                        alignment: start;
-                        col: 1;
-
-                        Rectangle {
-                            background: black;
-                            width: 160px;
-                            height: 90px;
-                        }
+                        col: 2;
                     }
                 }
             }
