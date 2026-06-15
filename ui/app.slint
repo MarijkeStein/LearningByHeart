@@ -173,7 +173,6 @@ component RecordingPanel inherits Rectangle {
 
             GridLayout {
                 spacing: 15px;
-                padding: 10px;
 
                 Row {
                     HorizontalBox {
@@ -212,25 +211,37 @@ component RecordingPanel inherits Rectangle {
                 }
 
                 Row {
-                    CheckBox {
-                        text: "Video Stream";
-                        checked <=> root.video-enabled;
-                        enabled: !root.is-recording;
+                    HorizontalBox {
+                        alignment: start;
                         col: 0;
+
+                        CheckBox {
+                            text: "Video Stream";
+                            checked <=> root.video-enabled;
+                            enabled: !root.is-recording;
+                        }
                     }
 
-                    CheckBox {
-                        text: "Microphone";
-                        checked <=> root.microphone-enabled;
-                        enabled: !root.is-recording;
+                    HorizontalBox {
+                        alignment: start;
                         col: 1;
+
+                        CheckBox {
+                            text: "Microphone";
+                            checked <=> root.microphone-enabled;
+                            enabled: !root.is-recording;
+                        }
                     }
 
-                    CheckBox {
-                        text: "Heartbeat Sensor (RRI)";
-                        checked <=> root.heartbeat-enabled;
-                        enabled: !root.is-recording;
+                    HorizontalBox {
+                        alignment: start;
                         col: 2;
+
+                        CheckBox {
+                            text: "Heartbeat Sensor (RRI)";
+                            checked <=> root.heartbeat-enabled;
+                            enabled: !root.is-recording;
+                        }
                     }
                 }
             }
