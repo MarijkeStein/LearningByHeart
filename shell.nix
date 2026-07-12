@@ -29,6 +29,8 @@ let
     libclang
     linuxHeaders
     v4l-utils
+    # Microphone dependencies
+    alsa-lib
   ];
 
   # Helper function to safely read the .dev attribute, falling back to the base package

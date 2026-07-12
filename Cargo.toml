@@ -1,12 +1,13 @@
 [package]
 name = "lbh"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
 slint = "1.9"
 muda = "0.19.1"
 nokhwa = { version = "0.10", features = ["input-native"] }
+cpal = "0.15"
 
 [build-dependencies]
 slint-build = "1.9"
