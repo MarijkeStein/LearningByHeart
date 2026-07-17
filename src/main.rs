@@ -207,7 +207,7 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     // Initialize microphone audio capture
-    let _app_weak_audio = app.as_weak();
+    let app_weak_audio = app.as_weak();
     std::thread::spawn(move || {
         println!("Audio thread started");
 
@@ -320,14 +320,40 @@ fn main() -> Result<(), slint::PlatformError> {
 
         println!("Audio stream started");
 
-        // Keep the stream alive and periodically log audio level for debugging
+        // Keep the stream alive and periodically update UI with audio samples
         loop {
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            let buffer = audio_buffer.lock().unwrap();
-            if !buffer.is_empty() {
-                let max_amplitude = buffer.iter().map(|&s| s.abs()).fold(0.0f32, f32::max);
-                println!("Audio buffer size: {}, max amplitude: {:.3}", buffer.len(), max_amplitude);
-            }
+            std::thread::sleep(std::time::Duration::from_millis(50)); // Update at ~20 FPS
+
+            let samples_to_display = {
+                let buffer = audio_buffer.lock().unwrap();
+
+                // Downsample to 32 samples for visualization (matching the UI component)
+                if buffer.len() >= 32 {
+                    let step = buffer.len() / 32;
+                    (0..32)
+                        .map(|i| {
+                            // Get RMS of a window for smoother visualization
+                            let start = i * step;
+                            let end = ((i + 1) * step).min(buffer.len());
+                            let window = &buffer[start..end];
+                            let rms = (window.iter().map(|&s| s * s).sum::<f32>() / window.len() as f32).sqrt();
+                            rms
+                        })
+                        .collect::<Vec<f32>>()
+                } else {
+                    buffer.clone()
+                }
+            };
+
+            // Update UI on event loop thread
+            let app_weak_clone = app_weak_audio.clone();
+            let samples_vec = samples_to_display.clone();
+            slint::invoke_from_event_loop(move || {
+                if let Some(app) = app_weak_clone.upgrade() {
+                    let model = slint::ModelRc::new(slint::VecModel::from(samples_vec));
+                    app.set_audio_samples(model);
+                }
+            }).ok();
         }
     });
 

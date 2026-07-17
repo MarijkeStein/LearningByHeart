@@ -144,12 +144,48 @@ component StopButton inherits Rectangle {
     }
 }
 
+component AudioPreview inherits Rectangle {
+    in property <[float]> samples;
+
+    width: 160px;
+    height: 90px;
+    background: #1a1a1a;
+    border-radius: 4px;
+
+    // Draw vertical bars representing audio amplitude
+    for i in 32: Rectangle {
+        x: i * (parent.width / 32);
+        width: (parent.width / 32) - 1px;
+        height: {
+            if (i < samples.length) {
+                max(2px, abs(samples[i]) * parent.height)
+            } else {
+                2px
+            }
+        };
+        y: (parent.height - self.height) / 2;
+        background: #00ff00;
+    }
+
+    // Show "Audio" text when no samples
+    if samples.length == 0: Text {
+        width: parent.width;
+        height: parent.height;
+        text: "Audio";
+        font-size: 12px;
+        color: #666666;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
 component RecordingPanel inherits Rectangle {
     in-out property <bool> video-enabled: true;
     in-out property <bool> microphone-enabled: true;
     in-out property <bool> heartbeat-enabled: true;
     in-out property <bool> is-recording: false;
     in-out property <image> webcam-preview;
+    in-out property <[float]> audio-samples;
 
     callback start-recording();
     callback stop-recording();
@@ -191,10 +227,8 @@ component RecordingPanel inherits Rectangle {
                         alignment: start;
                         col: 1;
 
-                        Rectangle {
-                            background: black;
-                            width: 160px;
-                            height: 90px;
+                        AudioPreview {
+                            samples: root.audio-samples;
                         }
                     }
 
@@ -500,6 +534,7 @@ export component AppWindow inherits Window {
     in-out property <bool> heartbeat-enabled: true;
     in-out property <bool> is-recording: false;
     in-out property <image> webcam-preview;
+    in-out property <[float]> audio-samples;
 
     init => {
         focus-scope.focus();
@@ -549,6 +584,7 @@ export component AppWindow inherits Window {
                         heartbeat-enabled <=> root.heartbeat-enabled;
                         is-recording <=> root.is-recording;
                         webcam-preview <=> root.webcam-preview;
+                        audio-samples <=> root.audio-samples;
                         start-recording => {
                             root.start-recording();
                         }
