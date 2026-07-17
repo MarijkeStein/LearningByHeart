@@ -6,6 +6,8 @@ use nokhwa::Camera;
 use slint::{Image, SharedPixelBuffer, Rgb8Pixel};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use std::sync::Mutex;
 
 // Creates a crossed-out rectangle placeholder image for when camera is unavailable
 fn create_no_camera_image(width: u32, height: u32) -> Image {
@@ -202,6 +204,131 @@ fn main() -> Result<(), slint::PlatformError> {
         app.set_is_recording(false);
 
         // TODO: Stop sensor streams and save recorded data
+    });
+
+    // Initialize microphone audio capture
+    let _app_weak_audio = app.as_weak();
+    std::thread::spawn(move || {
+        println!("Audio thread started");
+
+        // Try to get the default audio input device
+        let host = cpal::default_host();
+        let device = match host.default_input_device() {
+            Some(dev) => {
+                println!("Microphone initialized: {}", dev.name().unwrap_or_else(|_| "Unknown".to_string()));
+                dev
+            }
+            None => {
+                eprintln!("Failed to get default input device");
+                return;
+            }
+        };
+
+        // Get the default input config
+        let config = match device.default_input_config() {
+            Ok(cfg) => {
+                println!("Audio config: {} Hz, {} channels, {:?}",
+                    cfg.sample_rate().0,
+                    cfg.channels(),
+                    cfg.sample_format()
+                );
+                cfg
+            }
+            Err(e) => {
+                eprintln!("Failed to get default input config: {}", e);
+                return;
+            }
+        };
+
+        // Buffer to store recent audio samples for visualization
+        // Store last 1024 samples for waveform display
+        let audio_buffer = Arc::new(Mutex::new(Vec::<f32>::new()));
+        let audio_buffer_clone = audio_buffer.clone();
+
+        // Build the audio input stream
+        let stream = match config.sample_format() {
+            cpal::SampleFormat::F32 => {
+                let stream_config = config.into();
+                device.build_input_stream(
+                    &stream_config,
+                    move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                        let mut buffer = audio_buffer_clone.lock().unwrap();
+                        buffer.extend_from_slice(data);
+                        // Keep only the last 1024 samples
+                        if buffer.len() > 1024 {
+                            let len = buffer.len();
+                            buffer.drain(0..len - 1024);
+                        }
+                    },
+                    |err| eprintln!("Audio stream error: {}", err),
+                    None,
+                )
+            }
+            cpal::SampleFormat::I16 => {
+                let stream_config = config.into();
+                device.build_input_stream(
+                    &stream_config,
+                    move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                        let mut buffer = audio_buffer_clone.lock().unwrap();
+                        // Convert i16 to f32 (normalize to -1.0 to 1.0)
+                        buffer.extend(data.iter().map(|&s| s as f32 / 32768.0));
+                        if buffer.len() > 1024 {
+                            let len = buffer.len();
+                            buffer.drain(0..len - 1024);
+                        }
+                    },
+                    |err| eprintln!("Audio stream error: {}", err),
+                    None,
+                )
+            }
+            cpal::SampleFormat::U16 => {
+                let stream_config = config.into();
+                device.build_input_stream(
+                    &stream_config,
+                    move |data: &[u16], _: &cpal::InputCallbackInfo| {
+                        let mut buffer = audio_buffer_clone.lock().unwrap();
+                        // Convert u16 to f32 (normalize to -1.0 to 1.0)
+                        buffer.extend(data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0));
+                        if buffer.len() > 1024 {
+                            let len = buffer.len();
+                            buffer.drain(0..len - 1024);
+                        }
+                    },
+                    |err| eprintln!("Audio stream error: {}", err),
+                    None,
+                )
+            }
+            _ => {
+                eprintln!("Unsupported sample format: {:?}", config.sample_format());
+                return;
+            }
+        };
+
+        let stream = match stream {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Failed to build input stream: {}", e);
+                return;
+            }
+        };
+
+        // Start the audio stream
+        if let Err(e) = stream.play() {
+            eprintln!("Failed to start audio stream: {}", e);
+            return;
+        }
+
+        println!("Audio stream started");
+
+        // Keep the stream alive and periodically log audio level for debugging
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            let buffer = audio_buffer.lock().unwrap();
+            if !buffer.is_empty() {
+                let max_amplitude = buffer.iter().map(|&s| s.abs()).fold(0.0f32, f32::max);
+                println!("Audio buffer size: {}, max amplitude: {:.3}", buffer.len(), max_amplitude);
+            }
+        }
     });
 
     // Initialize webcam preview after a short delay to ensure event loop is running
