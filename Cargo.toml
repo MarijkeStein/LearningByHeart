@@ -8,6 +8,8 @@ slint = "1.9"
 muda = "0.19.1"
 nokhwa = { version = "0.10", features = ["input-native"] }
 cpal = "0.15"
+hound = "3.5"
+chrono = "0.4"
 
 [build-dependencies]
 slint-build = "1.9"
