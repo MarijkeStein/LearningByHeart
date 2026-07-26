@@ -214,11 +214,23 @@ component RecordingPanel inherits Rectangle {
                         alignment: start;
                         col: 0;
 
-                        Image {
+                        if root.video-enabled: Image {
                             source: root.webcam-preview;
                             width: 320px;
                             height: 180px;
                             image-fit: cover;
+                        }
+                        if !root.video-enabled: Rectangle {
+                            width: 320px;
+                            height: 180px;
+                            background: black;
+                            Text {
+                                text: "Video disabled";
+                                color: #555555;
+                                font-size: 14px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
                         }
                     }
 
@@ -226,8 +238,20 @@ component RecordingPanel inherits Rectangle {
                         alignment: start;
                         col: 1;
 
-                        AudioPreview {
+                        if root.microphone-enabled: AudioPreview {
                             samples: root.audio-samples;
+                        }
+                        if !root.microphone-enabled: Rectangle {
+                            width: 320px;
+                            height: 180px;
+                            background: black;
+                            Text {
+                                text: "Microphone disabled";
+                                color: #555555;
+                                font-size: 14px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
                         }
                     }
 
