@@ -152,14 +152,17 @@ component AudioPreview inherits Rectangle {
     background: #1a1a1a;
     border-radius: 4px;
 
-    // Draw volume envelope as vertical bars rising from the bottom (newest audio at right edge)
+    // Draw amplitude bars centered on the midline, spiking both up and down.
+    // Squared response curve: quiet noise stays near the flat baseline,
+    // only actual speech/sound produces clearly visible spikes.
     for i in min(160, samples.length): Rectangle {
-        property <length> bar-height: max(1px, min(parent.height, abs(samples[i]) * 3.0 * parent.height));
+        property <float> normalized: min(1.0, abs(samples[i]) * 3.0);
+        property <length> half-height: normalized * normalized * parent.height / 2;
 
         x: i * 1px;
-        y: parent.height - bar-height;
+        y: parent.height / 2 - half-height;
         width: 1px;
-        height: bar-height;
+        height: max(1px, half-height * 2);
         background: #00ff00;
     }
 
