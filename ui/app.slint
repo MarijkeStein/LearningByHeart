@@ -152,18 +152,14 @@ component AudioPreview inherits Rectangle {
     background: #1a1a1a;
     border-radius: 4px;
 
-    // Draw vertical bars representing audio amplitude
-    for i in 32: Rectangle {
-        x: i * (parent.width / 32);
-        width: (parent.width / 32) - 1px;
-        height: {
-            if (i < samples.length) {
-                max(2px, abs(samples[i]) * parent.height)
-            } else {
-                2px
-            }
-        };
-        y: (parent.height - self.height) / 2;
+    // Draw volume envelope as vertical bars rising from the bottom (newest audio at right edge)
+    for i in min(160, samples.length): Rectangle {
+        property <length> bar-height: max(1px, min(parent.height, abs(samples[i]) * 3.0 * parent.height));
+
+        x: i * 1px;
+        y: parent.height - bar-height;
+        width: 1px;
+        height: bar-height;
         background: #00ff00;
     }
 

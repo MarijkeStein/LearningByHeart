@@ -241,8 +241,12 @@ fn main() -> Result<(), slint::PlatformError> {
         };
 
         // Buffer to store recent audio samples for visualization
-        // Store last 1024 samples for waveform display
-        let audio_buffer = Arc::new(Mutex::new(Vec::<f32>::new()));
+        // Store 3 seconds of audio for volume envelope display
+        // At 48kHz (typical sample rate), 3 seconds = 144,000 samples
+        // We'll use a fixed-size circular buffer
+        let sample_rate = config.sample_rate().0 as usize;
+        let buffer_size = sample_rate * 3; // 3 seconds
+        let audio_buffer = Arc::new(Mutex::new(Vec::<f32>::with_capacity(buffer_size)));
         let audio_buffer_clone = audio_buffer.clone();
 
         // Build the audio input stream
@@ -253,11 +257,12 @@ fn main() -> Result<(), slint::PlatformError> {
                     &stream_config,
                     move |data: &[f32], _: &cpal::InputCallbackInfo| {
                         let mut buffer = audio_buffer_clone.lock().unwrap();
+                        let max_len = buffer.capacity();
                         buffer.extend_from_slice(data);
-                        // Keep only the last 1024 samples
-                        if buffer.len() > 1024 {
+                        // Keep only the last 3 seconds (circular buffer)
+                        if buffer.len() > max_len {
                             let len = buffer.len();
-                            buffer.drain(0..len - 1024);
+                            buffer.drain(0..len - max_len);
                         }
                     },
                     |err| eprintln!("Audio stream error: {}", err),
@@ -270,11 +275,12 @@ fn main() -> Result<(), slint::PlatformError> {
                     &stream_config,
                     move |data: &[i16], _: &cpal::InputCallbackInfo| {
                         let mut buffer = audio_buffer_clone.lock().unwrap();
+                        let max_len = buffer.capacity();
                         // Convert i16 to f32 (normalize to -1.0 to 1.0)
                         buffer.extend(data.iter().map(|&s| s as f32 / 32768.0));
-                        if buffer.len() > 1024 {
+                        if buffer.len() > max_len {
                             let len = buffer.len();
-                            buffer.drain(0..len - 1024);
+                            buffer.drain(0..len - max_len);
                         }
                     },
                     |err| eprintln!("Audio stream error: {}", err),
@@ -287,11 +293,12 @@ fn main() -> Result<(), slint::PlatformError> {
                     &stream_config,
                     move |data: &[u16], _: &cpal::InputCallbackInfo| {
                         let mut buffer = audio_buffer_clone.lock().unwrap();
+                        let max_len = buffer.capacity();
                         // Convert u16 to f32 (normalize to -1.0 to 1.0)
                         buffer.extend(data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0));
-                        if buffer.len() > 1024 {
+                        if buffer.len() > max_len {
                             let len = buffer.len();
-                            buffer.drain(0..len - 1024);
+                            buffer.drain(0..len - max_len);
                         }
                     },
                     |err| eprintln!("Audio stream error: {}", err),
@@ -320,37 +327,41 @@ fn main() -> Result<(), slint::PlatformError> {
 
         println!("Audio stream started");
 
-        // Keep the stream alive and periodically update UI with audio samples
+        // Keep the stream alive and periodically update UI with audio volume envelope
         loop {
             std::thread::sleep(std::time::Duration::from_millis(50)); // Update at ~20 FPS
 
-            let samples_to_display = {
+            let envelope_to_display = {
                 let buffer = audio_buffer.lock().unwrap();
 
-                // Downsample to 32 samples for visualization (matching the UI component)
-                if buffer.len() >= 32 {
-                    let step = buffer.len() / 32;
-                    (0..32)
-                        .map(|i| {
-                            // Get RMS of a window for smoother visualization
-                            let start = i * step;
-                            let end = ((i + 1) * step).min(buffer.len());
-                            let window = &buffer[start..end];
-                            let rms = (window.iter().map(|&s| s * s).sum::<f32>() / window.len() as f32).sqrt();
-                            rms
-                        })
-                        .collect::<Vec<f32>>()
-                } else {
-                    buffer.clone()
-                }
+                // Map the 3-second buffer to 160 display points, newest audio at the right edge.
+                // As the buffer fills, silence shows on the left and audio grows in from the right,
+                // then scrolls left once the full 3 seconds are accumulated.
+                let target_samples = sample_rate * 3;
+                let step = (target_samples / 160).max(1);
+
+                (0..160)
+                    .map(|i| {
+                        // i=159 is rightmost (newest), i=0 is leftmost (oldest/silence)
+                        let steps_from_end = 159 - i;
+                        let end_idx = buffer.len().saturating_sub(steps_from_end * step);
+                        let start_idx = buffer.len().saturating_sub((steps_from_end + 1) * step);
+                        if start_idx >= end_idx {
+                            0.0
+                        } else {
+                            let window = &buffer[start_idx..end_idx];
+                            (window.iter().map(|&s| s * s).sum::<f32>() / window.len() as f32).sqrt()
+                        }
+                    })
+                    .collect::<Vec<f32>>()
             };
 
             // Update UI on event loop thread
             let app_weak_clone = app_weak_audio.clone();
-            let samples_vec = samples_to_display.clone();
+            let envelope_vec = envelope_to_display.clone();
             slint::invoke_from_event_loop(move || {
                 if let Some(app) = app_weak_clone.upgrade() {
-                    let model = slint::ModelRc::new(slint::VecModel::from(samples_vec));
+                    let model = slint::ModelRc::new(slint::VecModel::from(envelope_vec));
                     app.set_audio_samples(model);
                 }
             }).ok();
