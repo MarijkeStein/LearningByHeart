@@ -113,6 +113,38 @@ fn start_menu_event_handler(quit_item_id: muda::MenuId) {
     });
 }
 
+fn mood_name(id: i32) -> &'static str {
+    match id {
+        1 => "Excited",
+        2 => "In Love",
+        3 => "Partying",
+        4 => "Happy",
+        5 => "Neutral",
+        6 => "Tired",
+        7 => "Exploding",
+        8 => "Fearful",
+        9 => "Sad",
+        10 => "Unwell",
+        11 => "Sick",
+        12 => "None/Other",
+        _ => "Not selected",
+    }
+}
+
+fn write_session_json(dir: &std::path::Path, mood_id: i32, timestamp: &str) {
+    let name = mood_name(mood_id);
+    let json = format!(
+        "{{\n  \"recorded_at\": \"{}\",\n  \"mood_id\": {},\n  \"mood_name\": \"{}\"\n}}\n",
+        timestamp, mood_id, name
+    );
+    let path = dir.join("mood.json");
+    if let Err(e) = std::fs::write(&path, json) {
+        eprintln!("Failed to write session.json: {}", e);
+    } else {
+        println!("Mood state saved to {:?}", path);
+    }
+}
+
 fn spawn_audio_writer(
     dir: &std::path::Path,
     sample_rate: u32,
@@ -261,17 +293,7 @@ fn main() -> Result<(), slint::PlatformError> {
     app.window().set_maximized(true);
 
     app.on_mood_voted(|mood_id| {
-        let mood_name = match mood_id {
-            1 => "Happy", 2 => "Sad", 3 => "Angry", 4 => "Anxious",
-            5 => "Calm", 6 => "Tired", 7 => "Excited", 8 => "Depressed",
-            9 => "Frustrated", 10 => "Scared", 11 => "Neutral", 12 => "Thoughtful",
-            _ => "Unknown",
-        };
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        println!("Mood vote recorded: {} (ID: {}) at timestamp: {}", mood_name, mood_id, timestamp);
+        println!("Mood selected: {} (ID: {})", mood_name(mood_id), mood_id);
     });
 
     // --- Recording callbacks ---
@@ -292,6 +314,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
         let video_enabled = app.get_video_enabled();
         let mic_enabled = app.get_microphone_enabled();
+        let mood_id = app.get_selected_mood_id();
 
         let timestamp = Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
         let dir = std::path::PathBuf::from(format!("./recordings/{}", timestamp));
@@ -301,6 +324,8 @@ fn main() -> Result<(), slint::PlatformError> {
             return;
         }
         println!("Recording started — saving to {:?}", dir);
+
+        write_session_json(&dir, mood_id, &timestamp);
 
         let audio_tx = if mic_enabled {
             let info = audio_info_start.lock().unwrap();

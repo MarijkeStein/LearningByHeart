@@ -552,6 +552,7 @@ export component AppWindow inherits Window {
     callback stop-recording();
 
     in-out property <int> current-tab-index: 0;
+    in-out property <int> selected-mood-id: 0;
     in-out property <bool> video-enabled: true;
     in-out property <bool> microphone-enabled: true;
     in-out property <bool> heartbeat-enabled: true;
@@ -593,6 +594,7 @@ export component AppWindow inherits Window {
                 Tab {
                     title: "Mood Voting";
                     MoodVotingPanel {
+                        selected-mood-id <=> root.selected-mood-id;
                         mood-voted(id) => {
                             root.mood-voted(id);
                         }
