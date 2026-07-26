@@ -16,19 +16,24 @@ let
     gtk3
     harfbuzz
     libGL
+    libX11
+    libXcursor
+    libXi
+    libXrandr
     libxkbcommon
     noto-fonts-color-emoji
     pango
     wayland
     xdotool
-    xorg.libX11
-    xorg.libXcursor
-    xorg.libXrandr
-    xorg.libXi
+    zlib
+
     # Webcam dependencies
     libclang
     linuxHeaders
     v4l-utils
+
+    # Microphone dependencies
+    alsa-lib
   ];
 
   # Helper function to safely read the .dev attribute, falling back to the base package
@@ -48,7 +53,7 @@ pkgs.mkShell {
   ] ++ buildDeps;
 
   shellHook = ''
-    export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPath "lib/pkgconfig" (map getDev buildDeps)}"
+    export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPath "lib/pkgconfig" (map getDev buildDeps)}:${pkgs.lib.makeSearchPath "share/pkgconfig" (map getDev buildDeps)}"
     export LD_LIBRARY_PATH="/run/opengl-driver/lib:${pkgs.lib.makeLibraryPath buildDeps}:$LD_LIBRARY_PATH"
     export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
     export BINDGEN_EXTRA_CLANG_ARGS="-I${pkgs.glibc.dev}/include -I${pkgs.linuxHeaders}/include"

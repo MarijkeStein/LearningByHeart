@@ -144,12 +144,47 @@ component StopButton inherits Rectangle {
     }
 }
 
+component AudioPreview inherits Rectangle {
+    in property <[float]> samples;
+
+    width: 320px;
+    height: 180px;
+    background: #1a1a1a;
+    border-radius: 4px;
+
+    // Draw amplitude bars centered on the midline, spiking both up and down.
+    // Squared response curve: quiet noise stays near the flat baseline,
+    // only actual speech/sound produces clearly visible spikes.
+    for i in min(160, samples.length): Rectangle {
+        property <float> normalized: min(1.0, abs(samples[i]) * 3.0);
+        property <length> half-height: normalized * normalized * parent.height / 2;
+
+        x: i * 2px;
+        y: parent.height / 2 - half-height;
+        width: 2px;
+        height: max(1px, half-height * 2);
+        background: #00ff00;
+    }
+
+    // Show "Audio" text when no samples
+    if samples.length == 0: Text {
+        width: parent.width;
+        height: parent.height;
+        text: "Audio";
+        font-size: 12px;
+        color: #666666;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
 component RecordingPanel inherits Rectangle {
     in-out property <bool> video-enabled: true;
     in-out property <bool> microphone-enabled: true;
     in-out property <bool> heartbeat-enabled: true;
     in-out property <bool> is-recording: false;
     in-out property <image> webcam-preview;
+    in-out property <[float]> audio-samples;
 
     callback start-recording();
     callback stop-recording();
@@ -160,13 +195,6 @@ component RecordingPanel inherits Rectangle {
         padding: 30px;
         spacing: 30px;
         alignment: start;
-
-        Text {
-            text: "Recording Panel";
-            font-size: 24px;
-            font-weight: 700;
-            color: #2c3e50;
-        }
 
         GroupBox {
             title: "Sensor Configuration";
@@ -179,11 +207,23 @@ component RecordingPanel inherits Rectangle {
                         alignment: start;
                         col: 0;
 
-                        Image {
+                        if root.video-enabled: Image {
                             source: root.webcam-preview;
-                            width: 160px;
-                            height: 90px;
+                            width: 320px;
+                            height: 180px;
                             image-fit: cover;
+                        }
+                        if !root.video-enabled: Rectangle {
+                            width: 320px;
+                            height: 180px;
+                            background: black;
+                            Text {
+                                text: "Camera disabled";
+                                color: #555555;
+                                font-size: 14px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
                         }
                     }
 
@@ -191,10 +231,20 @@ component RecordingPanel inherits Rectangle {
                         alignment: start;
                         col: 1;
 
-                        Rectangle {
+                        if root.microphone-enabled: AudioPreview {
+                            samples: root.audio-samples;
+                        }
+                        if !root.microphone-enabled: Rectangle {
+                            width: 320px;
+                            height: 180px;
                             background: black;
-                            width: 160px;
-                            height: 90px;
+                            Text {
+                                text: "Microphone disabled";
+                                color: #555555;
+                                font-size: 14px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
                         }
                     }
 
@@ -204,8 +254,15 @@ component RecordingPanel inherits Rectangle {
 
                         Rectangle {
                             background: black;
-                            width: 160px;
-                            height: 90px;
+                            width: 320px;
+                            height: 180px;
+                            Text {
+                                text: "Heartbeat not yet supported";
+                                color: #555555;
+                                font-size: 14px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
                         }
                     }
                 }
@@ -216,7 +273,7 @@ component RecordingPanel inherits Rectangle {
                         col: 0;
 
                         CheckBox {
-                            text: "Video Stream";
+                            text: "Camera";
                             checked <=> root.video-enabled;
                             enabled: !root.is-recording;
                         }
@@ -238,9 +295,9 @@ component RecordingPanel inherits Rectangle {
                         col: 2;
 
                         CheckBox {
-                            text: "Heartbeat Sensor (RRI)";
+                            text: "Heartbeat Sensor";
                             checked <=> root.heartbeat-enabled;
-                            enabled: !root.is-recording;
+                            enabled: false;
                         }
                     }
                 }
@@ -500,6 +557,7 @@ export component AppWindow inherits Window {
     in-out property <bool> heartbeat-enabled: true;
     in-out property <bool> is-recording: false;
     in-out property <image> webcam-preview;
+    in-out property <[float]> audio-samples;
 
     init => {
         focus-scope.focus();
@@ -549,6 +607,7 @@ export component AppWindow inherits Window {
                         heartbeat-enabled <=> root.heartbeat-enabled;
                         is-recording <=> root.is-recording;
                         webcam-preview <=> root.webcam-preview;
+                        audio-samples <=> root.audio-samples;
                         start-recording => {
                             root.start-recording();
                         }

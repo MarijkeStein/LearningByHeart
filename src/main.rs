@@ -6,6 +6,8 @@ use nokhwa::Camera;
 use slint::{Image, SharedPixelBuffer, Rgb8Pixel};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use std::sync::Mutex;
 
 // Creates a crossed-out rectangle placeholder image for when camera is unavailable
 fn create_no_camera_image(width: u32, height: u32) -> Image {
@@ -202,6 +204,168 @@ fn main() -> Result<(), slint::PlatformError> {
         app.set_is_recording(false);
 
         // TODO: Stop sensor streams and save recorded data
+    });
+
+    // Initialize microphone audio capture
+    let app_weak_audio = app.as_weak();
+    std::thread::spawn(move || {
+        println!("Audio thread started");
+
+        // Try to get the default audio input device
+        let host = cpal::default_host();
+        let device = match host.default_input_device() {
+            Some(dev) => {
+                println!("Microphone initialized: {}", dev.name().unwrap_or_else(|_| "Unknown".to_string()));
+                dev
+            }
+            None => {
+                eprintln!("Failed to get default input device");
+                return;
+            }
+        };
+
+        // Get the default input config
+        let config = match device.default_input_config() {
+            Ok(cfg) => {
+                println!("Audio config: {} Hz, {} channels, {:?}",
+                    cfg.sample_rate().0,
+                    cfg.channels(),
+                    cfg.sample_format()
+                );
+                cfg
+            }
+            Err(e) => {
+                eprintln!("Failed to get default input config: {}", e);
+                return;
+            }
+        };
+
+        // Buffer to store recent audio samples for visualization
+        // Store 3 seconds of audio for volume envelope display
+        // At 48kHz (typical sample rate), 3 seconds = 144,000 samples
+        // We'll use a fixed-size circular buffer
+        let sample_rate = config.sample_rate().0 as usize;
+        let buffer_size = sample_rate * 3; // 3 seconds
+        let audio_buffer = Arc::new(Mutex::new(Vec::<f32>::with_capacity(buffer_size)));
+        let audio_buffer_clone = audio_buffer.clone();
+
+        // Build the audio input stream
+        let stream = match config.sample_format() {
+            cpal::SampleFormat::F32 => {
+                let stream_config = config.into();
+                device.build_input_stream(
+                    &stream_config,
+                    move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                        let mut buffer = audio_buffer_clone.lock().unwrap();
+                        let max_len = buffer.capacity();
+                        buffer.extend_from_slice(data);
+                        // Keep only the last 3 seconds (circular buffer)
+                        if buffer.len() > max_len {
+                            let len = buffer.len();
+                            buffer.drain(0..len - max_len);
+                        }
+                    },
+                    |err| eprintln!("Audio stream error: {}", err),
+                    None,
+                )
+            }
+            cpal::SampleFormat::I16 => {
+                let stream_config = config.into();
+                device.build_input_stream(
+                    &stream_config,
+                    move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                        let mut buffer = audio_buffer_clone.lock().unwrap();
+                        let max_len = buffer.capacity();
+                        // Convert i16 to f32 (normalize to -1.0 to 1.0)
+                        buffer.extend(data.iter().map(|&s| s as f32 / 32768.0));
+                        if buffer.len() > max_len {
+                            let len = buffer.len();
+                            buffer.drain(0..len - max_len);
+                        }
+                    },
+                    |err| eprintln!("Audio stream error: {}", err),
+                    None,
+                )
+            }
+            cpal::SampleFormat::U16 => {
+                let stream_config = config.into();
+                device.build_input_stream(
+                    &stream_config,
+                    move |data: &[u16], _: &cpal::InputCallbackInfo| {
+                        let mut buffer = audio_buffer_clone.lock().unwrap();
+                        let max_len = buffer.capacity();
+                        // Convert u16 to f32 (normalize to -1.0 to 1.0)
+                        buffer.extend(data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0));
+                        if buffer.len() > max_len {
+                            let len = buffer.len();
+                            buffer.drain(0..len - max_len);
+                        }
+                    },
+                    |err| eprintln!("Audio stream error: {}", err),
+                    None,
+                )
+            }
+            _ => {
+                eprintln!("Unsupported sample format: {:?}", config.sample_format());
+                return;
+            }
+        };
+
+        let stream = match stream {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Failed to build input stream: {}", e);
+                return;
+            }
+        };
+
+        // Start the audio stream
+        if let Err(e) = stream.play() {
+            eprintln!("Failed to start audio stream: {}", e);
+            return;
+        }
+
+        println!("Audio stream started");
+
+        // Keep the stream alive and periodically update UI with audio volume envelope
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(50)); // Update at ~20 FPS
+
+            let envelope_to_display = {
+                let buffer = audio_buffer.lock().unwrap();
+
+                // Map the 3-second buffer to 160 display points, newest audio at the right edge.
+                // As the buffer fills, silence shows on the left and audio grows in from the right,
+                // then scrolls left once the full 3 seconds are accumulated.
+                let target_samples = sample_rate * 3;
+                let step = (target_samples / 160).max(1);
+
+                (0..160)
+                    .map(|i| {
+                        // i=159 is rightmost (newest), i=0 is leftmost (oldest/silence)
+                        let steps_from_end = 159 - i;
+                        let end_idx = buffer.len().saturating_sub(steps_from_end * step);
+                        let start_idx = buffer.len().saturating_sub((steps_from_end + 1) * step);
+                        if start_idx >= end_idx {
+                            0.0
+                        } else {
+                            let window = &buffer[start_idx..end_idx];
+                            (window.iter().map(|&s| s * s).sum::<f32>() / window.len() as f32).sqrt()
+                        }
+                    })
+                    .collect::<Vec<f32>>()
+            };
+
+            // Update UI on event loop thread
+            let app_weak_clone = app_weak_audio.clone();
+            let envelope_vec = envelope_to_display.clone();
+            slint::invoke_from_event_loop(move || {
+                if let Some(app) = app_weak_clone.upgrade() {
+                    let model = slint::ModelRc::new(slint::VecModel::from(envelope_vec));
+                    app.set_audio_samples(model);
+                }
+            }).ok();
+        }
     });
 
     // Initialize webcam preview after a short delay to ensure event loop is running
