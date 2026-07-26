@@ -196,13 +196,6 @@ component RecordingPanel inherits Rectangle {
         spacing: 30px;
         alignment: start;
 
-        Text {
-            text: "Recording Panel";
-            font-size: 24px;
-            font-weight: 700;
-            color: #2c3e50;
-        }
-
         GroupBox {
             title: "Sensor Configuration";
 
@@ -225,7 +218,7 @@ component RecordingPanel inherits Rectangle {
                             height: 180px;
                             background: black;
                             Text {
-                                text: "Video disabled";
+                                text: "Camera disabled";
                                 color: #555555;
                                 font-size: 14px;
                                 horizontal-alignment: center;
@@ -264,7 +257,7 @@ component RecordingPanel inherits Rectangle {
                             width: 320px;
                             height: 180px;
                             Text {
-                                text: "HRV not yet supported";
+                                text: "Heartbeat not yet supported";
                                 color: #555555;
                                 font-size: 14px;
                                 horizontal-alignment: center;
@@ -280,7 +273,7 @@ component RecordingPanel inherits Rectangle {
                         col: 0;
 
                         CheckBox {
-                            text: "Video Stream";
+                            text: "Camera";
                             checked <=> root.video-enabled;
                             enabled: !root.is-recording;
                         }
@@ -302,7 +295,7 @@ component RecordingPanel inherits Rectangle {
                         col: 2;
 
                         CheckBox {
-                            text: "Heartbeat Sensor (RRI)";
+                            text: "Heartbeat Sensor";
                             checked <=> root.heartbeat-enabled;
                             enabled: false;
                         }
