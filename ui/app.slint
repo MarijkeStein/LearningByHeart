@@ -263,6 +263,13 @@ component RecordingPanel inherits Rectangle {
                             background: black;
                             width: 320px;
                             height: 180px;
+                            Text {
+                                text: "HRV not yet supported";
+                                color: #555555;
+                                font-size: 14px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
                         }
                     }
                 }
@@ -297,7 +304,7 @@ component RecordingPanel inherits Rectangle {
                         CheckBox {
                             text: "Heartbeat Sensor (RRI)";
                             checked <=> root.heartbeat-enabled;
-                            enabled: !root.is-recording;
+                            enabled: false;
                         }
                     }
                 }
