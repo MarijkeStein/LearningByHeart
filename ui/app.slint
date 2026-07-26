@@ -147,8 +147,8 @@ component StopButton inherits Rectangle {
 component AudioPreview inherits Rectangle {
     in property <[float]> samples;
 
-    width: 160px;
-    height: 90px;
+    width: 320px;
+    height: 180px;
     background: #1a1a1a;
     border-radius: 4px;
 
@@ -159,9 +159,9 @@ component AudioPreview inherits Rectangle {
         property <float> normalized: min(1.0, abs(samples[i]) * 3.0);
         property <length> half-height: normalized * normalized * parent.height / 2;
 
-        x: i * 1px;
+        x: i * 2px;
         y: parent.height / 2 - half-height;
-        width: 1px;
+        width: 2px;
         height: max(1px, half-height * 2);
         background: #00ff00;
     }
@@ -216,8 +216,8 @@ component RecordingPanel inherits Rectangle {
 
                         Image {
                             source: root.webcam-preview;
-                            width: 160px;
-                            height: 90px;
+                            width: 320px;
+                            height: 180px;
                             image-fit: cover;
                         }
                     }
@@ -237,8 +237,8 @@ component RecordingPanel inherits Rectangle {
 
                         Rectangle {
                             background: black;
-                            width: 160px;
-                            height: 90px;
+                            width: 320px;
+                            height: 180px;
                         }
                     }
                 }
