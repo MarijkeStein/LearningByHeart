@@ -270,19 +270,13 @@ fn spawn_video_writer(dir: &std::path::Path) -> std::sync::mpsc::SyncSender<RawF
 }
 
 fn main() -> Result<(), slint::PlatformError> {
+    println!("LBH version {} on {}", LBH_VERSION, std::env::consts::OS);
     #[allow(unused_variables)]
     let (menu, quit_item_id) = create_menu();
 
     #[cfg(target_os = "macos")]
     {
         menu.init_for_nsapp();
-        println!("Native menu bar initialized for macOS");
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        eprintln!("Warning: Native menu bar integration on Linux is limited.");
-        eprintln!("Using in-window menu bar from app.slint instead.");
     }
 
     start_menu_event_handler(quit_item_id);
