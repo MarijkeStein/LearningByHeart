@@ -116,6 +116,28 @@ fn start_menu_event_handler(quit_item_id: muda::MenuId) {
     });
 }
 
+fn list_recordings() -> Vec<slint::SharedString> {
+    let dir = std::path::Path::new("./recordings");
+    if !dir.exists() {
+        return vec![];
+    }
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let p = e.path();
+            if p.is_dir() {
+                p.file_name().and_then(|n| n.to_str()).map(|s| s.to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+    names.sort_by(|a, b| b.cmp(a)); // newest first
+    names.iter().map(|s| s.as_str().into()).collect()
+}
+
 fn mood_name(id: i32) -> &'static str {
     match id {
         1 => "Excited",
@@ -288,6 +310,9 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let app = AppWindow::new()?;
     app.window().set_maximized(true);
+
+    let recordings = list_recordings();
+    app.set_recordings_list(slint::ModelRc::new(slint::VecModel::from(recordings)));
 
     app.on_mood_voted(|mood_id| {
         println!("Mood selected: {} (ID: {})", mood_name(mood_id), mood_id);
