@@ -32,6 +32,9 @@ struct Recording {
     video_tx: Option<std::sync::mpsc::SyncSender<RawFrame>>,
 }
 
+// Cargo passes settings from Cargo.toml as env. variable to compiler
+const LBH_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn create_no_camera_image(width: u32, height: u32) -> Image {
     let mut pixel_data = vec![0u8; (width * height * 3) as usize];
 
