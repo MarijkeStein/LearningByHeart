@@ -135,7 +135,7 @@ fn list_recordings() -> Vec<slint::SharedString> {
         })
         .collect();
     names.sort_by(|a, b| b.cmp(a)); // newest first
-    names.iter().map(|s| s.as_str().into()).collect()
+    names.iter().map(|s| s.replacen('T', " ", 1).as_str().into()).collect()
 }
 
 fn mood_name(id: i32) -> &'static str {
