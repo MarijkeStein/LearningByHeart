@@ -153,11 +153,13 @@ component AudioPreview inherits Rectangle {
     border-radius: 4px;
 
     // Draw amplitude bars centered on the midline, spiking both up and down.
-    // Squared response curve: quiet noise stays near the flat baseline,
-    // only actual speech/sound produces clearly visible spikes.
+    // Gate clips everything below 0.6 (in 3x-scaled space) to silence, then
+    // rescales the remainder to [0,1] so speech uses the full height range.
+    // Cubic curve above the gate keeps quiet-but-audible sounds subtle.
     for i in min(160, samples.length): Rectangle {
         property <float> normalized: min(1.0, abs(samples[i]) * 3.0);
-        property <length> half-height: normalized * normalized * parent.height / 2;
+        property <float> gated: min(1.0, max(0.0, normalized - 0.6) * 2.5);
+        property <length> half-height: gated * gated * gated * parent.height / 2;
 
         x: i * 2px;
         y: parent.height / 2 - half-height;

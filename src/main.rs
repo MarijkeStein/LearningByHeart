@@ -402,22 +402,32 @@ fn main() -> Result<(), slint::PlatformError> {
             *info = Some(AudioInfo { sample_rate, channels });
         }
 
-        let buffer_size = sample_rate as usize * 3;
-        let audio_buffer = Arc::new(Mutex::new(Vec::<f32>::with_capacity(buffer_size)));
+        // Each display bar covers this many raw samples. Computed once per audio
+        // session so bar boundaries are stable and bar values never change after
+        // being pushed into the history.
+        let bar_step = ((sample_rate as usize * 3) / 160).max(1);
 
-        // Shared closure: update preview buffer + send to recording channel.
-        // Captured Arcs are all Clone, so the closure is Clone.
-        let audio_buffer_inner = audio_buffer.clone();
+        let bar_acc = Arc::new(Mutex::new(Vec::<f32>::new()));
+        let bar_history = Arc::new(Mutex::new(Vec::<f32>::new()));
+
+        let bar_acc_inner = bar_acc.clone();
+        let bar_history_inner = bar_history.clone();
         let rec_state_inner = recording_state_audio.clone();
         let process = move |samples_f32: Vec<f32>| {
-            // Preview buffer (circular, last 3 s)
+            // Accumulate raw samples; push one RMS bar per bar_step samples.
             {
-                let mut buf = audio_buffer_inner.lock().unwrap();
-                let max_len = buf.capacity();
-                buf.extend_from_slice(&samples_f32);
-                if buf.len() > max_len {
-                    let excess = buf.len() - max_len;
-                    buf.drain(0..excess);
+                let mut acc = bar_acc_inner.lock().unwrap();
+                acc.extend_from_slice(&samples_f32);
+
+                let mut hist = bar_history_inner.lock().unwrap();
+                while acc.len() >= bar_step {
+                    let window = &acc[..bar_step];
+                    let rms = (window.iter().map(|&s| s * s).sum::<f32>() / bar_step as f32).sqrt();
+                    acc.drain(0..bar_step);
+                    hist.push(rms);
+                    if hist.len() > 160 {
+                        hist.drain(0..1);
+                    }
                 }
             }
             // Recording
@@ -486,27 +496,16 @@ fn main() -> Result<(), slint::PlatformError> {
         println!("Audio stream started");
 
         // Preview update loop: ~20 FPS.
-        let sample_rate_usize = sample_rate as usize;
         loop {
             std::thread::sleep(std::time::Duration::from_millis(50));
 
-            let envelope = {
-                let buf = audio_buffer.lock().unwrap();
-                let target_samples = sample_rate_usize * 3;
-                let step = (target_samples / 160).max(1);
-                (0..160)
-                    .map(|i| {
-                        let steps_from_end = 159 - i;
-                        let end_idx = buf.len().saturating_sub(steps_from_end * step);
-                        let start_idx = buf.len().saturating_sub((steps_from_end + 1) * step);
-                        if start_idx >= end_idx {
-                            0.0
-                        } else {
-                            let window = &buf[start_idx..end_idx];
-                            (window.iter().map(|&s| s * s).sum::<f32>() / window.len() as f32).sqrt()
-                        }
-                    })
-                    .collect::<Vec<f32>>()
+            // Snapshot the history; pad left with zeros while the buffer fills.
+            let envelope: Vec<f32> = {
+                let hist = bar_history.lock().unwrap();
+                let padding = 160usize.saturating_sub(hist.len());
+                let mut v = vec![0.0f32; padding];
+                v.extend_from_slice(&hist);
+                v
             };
 
             let app_weak_clone = app_weak_audio.clone();
