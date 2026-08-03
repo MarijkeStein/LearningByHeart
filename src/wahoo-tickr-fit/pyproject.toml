@@ -1,0 +1,41 @@
+[project]
+name = "lbh-backend-wahoo-tickr-fit"
+version = "0.1.0"
+description = "LBH backend device driver for Wahoo TICKR FIT Bluetooth Heart Rate Monitor >"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Marijke Stein" }
+]
+keywords = ["HRV", "sensor", "wristband", "Bluetooth"]
+classifiers = [
+]
+dependencies = [
+    "bleak>=3.0.2",
+]
+
+[project.scripts]
+printhi = "lbh_backend_wahoo_tickr_fit.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lbh_backend_wahoo_tickr_fit"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+
+[tool.ruff.format]
+
+[tool.uv]
+package = true
+
+[dependency-groups]
+dev = [
+    "ipython",
+]
+
