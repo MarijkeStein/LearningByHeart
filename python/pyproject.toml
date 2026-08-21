@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-printhi = "lbh_backend_wahoo_tickr_fit.main:main"
+fetch-hrv = "lbh_backend_wahoo_tickr_fit.fetch_hrv:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lbh_backend_wahoo_tickr_fit"]
