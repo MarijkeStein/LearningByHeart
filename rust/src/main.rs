@@ -286,6 +286,9 @@ fn start_audio_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc<Ato
 
         // Scrolling display buffer: 160 display values, one per waveform bar.
         let mut display_buf: VecDeque<f32> = VecDeque::with_capacity(160);
+        // Noise floor estimator: running minimum over the last ~10 s (150 ticks).
+        // Pre-filled with 1.0 so the first real peak immediately becomes the floor.
+        let mut floor_buf: VecDeque<f32> = VecDeque::from(vec![1.0f32; 150]);
         let mut prev_active = capture_active.load(Ordering::Relaxed);
         let display_interval = std::time::Duration::from_millis(67); // ~15 fps
         let mut debug_tick = 0u32;
@@ -329,15 +332,21 @@ fn start_audio_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc<Ato
                 peak
             };
 
-            // Michaelis-Menten soft-knee: maps [0,1] → [0, ~0.77] with
-            // k=0.3. Compresses high-gain mic headroom so ambient room noise
-            // never saturates the display. True silence stays at ~0.
-            let display_val = window_peak / (window_peak + 0.3);
+            // Update noise floor: running minimum over the last 150 ticks (~10 s).
+            floor_buf.push_back(window_peak);
+            floor_buf.pop_front();
+            let noise_floor = floor_buf.iter().copied().fold(f32::MAX, f32::min);
 
-            // Periodic diagnostic so the actual signal level is visible.
+            // Subtract the noise floor so that ambient mic noise reads as zero.
+            // Scale up by 5× so modest speech above the floor fills the display,
+            // then apply Michaelis-Menten soft-knee (k=0.2) to avoid hard clipping.
+            let above_floor = (window_peak - noise_floor).max(0.0) * 5.0;
+            let display_val = above_floor / (above_floor + 0.2);
+
+            // Periodic diagnostic.
             debug_tick += 1;
             if debug_tick % 45 == 0 {
-                eprintln!("Audio peak raw={window_peak:.4}  display={display_val:.4}");
+                eprintln!("Audio raw={window_peak:.4}  floor={noise_floor:.4}  above={above_floor:.4}  display={display_val:.4}");
             }
 
             // Scroll: push compressed value, drop oldest when full.
