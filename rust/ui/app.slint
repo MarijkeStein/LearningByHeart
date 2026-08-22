@@ -160,21 +160,15 @@ component AudioPreview inherits Rectangle {
         background: #003300;
     }
 
-    // One 2 px wide bar per sample, anchored so newest is rightmost.
-    // `half-h` is typed as float (Slint treats bare floats as px in length
-    // bindings), which avoids the float×length type ambiguity that makes
-    // `amp * parent.height` silently ignore the `amp` multiplier.
-    // 88.0 is the max half-height in px (leaves a 2 px margin at each edge).
+    // One 2 px wide bar per sample. samples[i] is already soft-knee
+    // compressed in Rust to [0, ~0.77], so no further scaling is needed here.
+    // Bars are anchored to the right edge (newest rightmost) and centred
+    // vertically via self.height to avoid any float×length ambiguity.
     for i in samples.length: Rectangle {
-        property <float> amp: min(1.0, samples[i] * 3.0);
-        // Convert to length explicitly; 88 px is the max half-height
-        // (leaves a 2 px margin at each edge of the 180 px box).
-        property <length> half-h: max(1px, amp * 88 * 1px);
-
         x: parent.width - (samples.length - i) * 2px;
-        y: parent.height / 2 - half-h;
         width: 2px;
-        height: max(2px, half-h * 2);
+        height: max(2px, samples[i] * 176 * 1px);
+        y: (parent.height - self.height) / 2;
         background: #00ff00;
     }
 }

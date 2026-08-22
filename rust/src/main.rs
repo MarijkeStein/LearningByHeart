@@ -284,10 +284,11 @@ fn start_audio_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc<Ato
             return;
         }
 
-        // Scrolling display buffer: 160 peak values, one per waveform bar.
+        // Scrolling display buffer: 160 display values, one per waveform bar.
         let mut display_buf: VecDeque<f32> = VecDeque::with_capacity(160);
         let mut prev_active = capture_active.load(Ordering::Relaxed);
         let display_interval = std::time::Duration::from_millis(67); // ~15 fps
+        let mut debug_tick = 0u32;
 
         loop {
             std::thread::sleep(display_interval);
@@ -328,11 +329,22 @@ fn start_audio_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc<Ato
                 peak
             };
 
-            // Scroll: push new peak, drop oldest when full.
+            // Michaelis-Menten soft-knee: maps [0,1] → [0, ~0.77] with
+            // k=0.3. Compresses high-gain mic headroom so ambient room noise
+            // never saturates the display. True silence stays at ~0.
+            let display_val = window_peak / (window_peak + 0.3);
+
+            // Periodic diagnostic so the actual signal level is visible.
+            debug_tick += 1;
+            if debug_tick % 45 == 0 {
+                eprintln!("Audio peak raw={window_peak:.4}  display={display_val:.4}");
+            }
+
+            // Scroll: push compressed value, drop oldest when full.
             if display_buf.len() >= 160 {
                 display_buf.pop_front();
             }
-            display_buf.push_back(window_peak);
+            display_buf.push_back(display_val);
 
             let samples: Vec<f32> = display_buf.iter().copied().collect();
             let result = slint::invoke_from_event_loop({
