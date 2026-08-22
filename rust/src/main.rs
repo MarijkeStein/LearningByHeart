@@ -1,10 +1,13 @@
 slint::include_modules!();
 
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{FromSample, SampleFormat, SizedSample};
 use muda::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
-use slint::{Image, Rgb8Pixel, SharedPixelBuffer};
-use std::sync::Arc;
+use slint::{Image, ModelRc, Rgb8Pixel, SharedPixelBuffer, VecModel};
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 // Held for the duration of a recording; dropping it closes the channels and
@@ -169,6 +172,183 @@ fn start_webcam_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc<At
     });
 }
 
+/// Generic stream builder — converts any `SizedSample` format to f32 in the callback.
+/// Stores per-frame peak (max absolute value across all channels) into `pending`.
+fn build_audio_input_stream<T>(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    channels: usize,
+    pending: Arc<Mutex<Vec<f32>>>,
+) -> Result<cpal::Stream, cpal::Error>
+where
+    T: SizedSample,
+    f32: FromSample<T>,
+{
+    device.build_input_stream(
+        *config,
+        move |data: &[T], _: &cpal::InputCallbackInfo| {
+            let mut buf = pending.lock().unwrap();
+            for frame in data.chunks(channels.max(1)) {
+                let peak = frame.iter()
+                    .map(|&s| f32::from_sample_(s).abs())
+                    .fold(0.0f32, f32::max);
+                buf.push(peak);
+            }
+            // Prevent unbounded growth if the display thread falls behind.
+            if buf.len() > 8192 {
+                let keep_from = buf.len() - 8192;
+                buf.drain(..keep_from);
+            }
+        },
+        |e| eprintln!("Audio stream error: {e}"),
+        None,
+    )
+}
+
+/// Spawns a background thread that captures microphone input and pushes a
+/// scrolling 160-slot peak waveform to the UI at ~15 fps.
+///
+/// The audio callback runs at hardware rate (~375×/sec) but only stores peaks
+/// into a shared buffer. The display thread wakes up at 15 Hz, drains that
+/// buffer in one lock, and calls `invoke_from_event_loop` exactly once per frame.
+///
+/// `capture_active` mirrors the microphone-enabled checkbox. When false the
+/// stream is paused (hardware stays idle) and the waveform is cleared.
+fn start_audio_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc<AtomicBool>) {
+    std::thread::spawn(move || {
+        let host = cpal::default_host();
+
+        let device = match host.default_input_device() {
+            Some(d) => d,
+            None => {
+                eprintln!("No audio input device found");
+                let _ = slint::invoke_from_event_loop({
+                    let weak = app_weak.clone();
+                    move || { if let Some(app) = weak.upgrade() { app.set_microphone_enabled(false); } }
+                });
+                return;
+            }
+        };
+
+        let supported = match device.default_input_config() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("No default audio config: {e}");
+                let _ = slint::invoke_from_event_loop({
+                    let weak = app_weak.clone();
+                    move || { if let Some(app) = weak.upgrade() { app.set_microphone_enabled(false); } }
+                });
+                return;
+            }
+        };
+
+        let channels = supported.channels() as usize;
+        let config: cpal::StreamConfig = supported.clone().into();
+        let pending: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::with_capacity(4096)));
+
+        let stream = match supported.sample_format() {
+            SampleFormat::F32 => build_audio_input_stream::<f32>(&device, &config, channels, pending.clone()),
+            SampleFormat::I16 => build_audio_input_stream::<i16>(&device, &config, channels, pending.clone()),
+            SampleFormat::I32 => build_audio_input_stream::<i32>(&device, &config, channels, pending.clone()),
+            SampleFormat::U16 => build_audio_input_stream::<u16>(&device, &config, channels, pending.clone()),
+            SampleFormat::U32 => build_audio_input_stream::<u32>(&device, &config, channels, pending.clone()),
+            SampleFormat::F64 => build_audio_input_stream::<f64>(&device, &config, channels, pending.clone()),
+            fmt => {
+                eprintln!("Unsupported audio sample format: {fmt:?}");
+                let _ = slint::invoke_from_event_loop({
+                    let weak = app_weak.clone();
+                    move || { if let Some(app) = weak.upgrade() { app.set_microphone_enabled(false); } }
+                });
+                return;
+            }
+        };
+
+        let stream = match stream {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Failed to build audio stream: {e}");
+                let _ = slint::invoke_from_event_loop({
+                    let weak = app_weak.clone();
+                    move || { if let Some(app) = weak.upgrade() { app.set_microphone_enabled(false); } }
+                });
+                return;
+            }
+        };
+
+        if let Err(e) = stream.play() {
+            eprintln!("Failed to start audio stream: {e}");
+            let _ = slint::invoke_from_event_loop({
+                let weak = app_weak.clone();
+                move || { if let Some(app) = weak.upgrade() { app.set_microphone_enabled(false); } }
+            });
+            return;
+        }
+
+        // Scrolling display buffer: 160 peak values, one per waveform bar.
+        let mut display_buf: VecDeque<f32> = VecDeque::with_capacity(160);
+        let mut prev_active = capture_active.load(Ordering::Relaxed);
+        let display_interval = std::time::Duration::from_millis(67); // ~15 fps
+
+        loop {
+            std::thread::sleep(display_interval);
+
+            let active = capture_active.load(Ordering::Relaxed);
+
+            // Handle enable/disable transitions without tearing down the stream.
+            if active != prev_active {
+                prev_active = active;
+                if active {
+                    pending.lock().unwrap().clear(); // discard stale samples
+                    let _ = stream.play();
+                } else {
+                    let _ = stream.pause();
+                    display_buf.clear();
+                    // Clear the waveform in the UI.
+                    let result = slint::invoke_from_event_loop({
+                        let weak = app_weak.clone();
+                        move || {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_audio_samples(ModelRc::new(VecModel::from(vec![])));
+                            }
+                        }
+                    });
+                    if result.is_err() { break; }
+                }
+            }
+
+            if !active {
+                continue;
+            }
+
+            // Drain all samples collected since last tick; compute peak for this window.
+            let window_peak = {
+                let mut buf = pending.lock().unwrap();
+                let peak = buf.iter().copied().fold(0.0f32, f32::max);
+                buf.clear();
+                peak
+            };
+
+            // Scroll: push new peak, drop oldest when full.
+            if display_buf.len() >= 160 {
+                display_buf.pop_front();
+            }
+            display_buf.push_back(window_peak);
+
+            let samples: Vec<f32> = display_buf.iter().copied().collect();
+            let result = slint::invoke_from_event_loop({
+                let weak = app_weak.clone();
+                move || {
+                    if let Some(app) = weak.upgrade() {
+                        app.set_audio_samples(ModelRc::new(VecModel::from(samples)));
+                    }
+                }
+            });
+            if result.is_err() { break; } // Event loop gone — app is closing.
+        }
+        // `stream` is dropped here, which stops capture.
+    });
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     println!("LBH version {} on {}", LBH_VERSION, std::env::consts::OS);
     #[allow(unused_variables)]
@@ -189,11 +369,17 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     // Start webcam preview; initial state mirrors the UI default (video-enabled = true).
-    let capture_active = Arc::new(AtomicBool::new(app.get_video_enabled()));
-    start_webcam_preview(app.as_weak(), capture_active.clone());
-
+    let cam_active = Arc::new(AtomicBool::new(app.get_video_enabled()));
+    start_webcam_preview(app.as_weak(), cam_active.clone());
     app.on_video_enabled_changed(move |enabled| {
-        capture_active.store(enabled, Ordering::Relaxed);
+        cam_active.store(enabled, Ordering::Relaxed);
+    });
+
+    // Start microphone preview.
+    let mic_active = Arc::new(AtomicBool::new(app.get_microphone_enabled()));
+    start_audio_preview(app.as_weak(), mic_active.clone());
+    app.on_microphone_enabled_changed(move |enabled| {
+        mic_active.store(enabled, Ordering::Relaxed);
     });
 
     app.run()
