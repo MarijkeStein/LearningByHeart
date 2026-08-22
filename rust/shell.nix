@@ -34,6 +34,10 @@ let
 
     # Microphone dependencies
     alsa-lib
+
+    # Bluetooth heart rate sensor dependencies (btleplug uses BlueZ via D-Bus)
+    dbus
+    bluez
   ];
 
   # Helper function to safely read the .dev attribute, falling back to the base package

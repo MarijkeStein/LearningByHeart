@@ -1,5 +1,6 @@
 mod video;
 mod audio;
+mod heartbeat;
 mod gui;
 
 slint::include_modules!();
@@ -51,6 +52,9 @@ fn main() -> Result<(), slint::PlatformError> {
     app.on_microphone_enabled_changed(move |enabled| {
         mic_active.store(enabled, Ordering::Relaxed);
     });
+
+    // Start Bluetooth heart rate monitor.
+    heartbeat::start_heartbeat_monitor(app.as_weak());
 
     app.run()
 }
