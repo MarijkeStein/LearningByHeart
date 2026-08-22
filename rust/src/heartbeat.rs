@@ -97,6 +97,24 @@ fn push_display(app_weak: &slint::Weak<AppWindow>, text: &str) -> bool {
     .is_ok()
 }
 
+fn push_pulse(app_weak: &slint::Weak<AppWindow>) {
+    let weak = app_weak.clone();
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(app) = weak.upgrade() {
+            app.set_heart_beat_pulse(true);
+        }
+    });
+    let weak = app_weak.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_heart_beat_pulse(false);
+            }
+        });
+    });
+}
+
 async fn find_hr_peripheral(adapter: &Adapter) -> Option<Peripheral> {
     let filter = ScanFilter { services: vec![HEART_RATE_SERVICE_UUID] };
     if let Err(e) = adapter.start_scan(filter).await {
@@ -242,6 +260,7 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>) {
             if !push_display(&app_weak, &display) {
                 return; // event loop gone — app is closing
             }
+            push_pulse(&app_weak);
         }
 
         eprintln!("HR sensor disconnected; reconnecting in {RETRY_SECS}s");

@@ -181,6 +181,7 @@ component RecordingPanel inherits Rectangle {
     in-out property <image> webcam-preview;
     in-out property <[float]> audio-samples;
     in-out property <string> heart-rate-display: "Searching for HR sensor...";
+    in-out property <bool> heart-beat-pulse: false;
 
     callback start-recording();
     callback stop-recording();
@@ -260,6 +261,15 @@ component RecordingPanel inherits Rectangle {
                                 font-size: 14px;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
+                            }
+                            Text {
+                                text: "❤️";
+                                font-size: 64px;
+                                font-family: "Noto Color Emoji";
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                opacity: root.heart-beat-pulse ? 1.0 : 0.0;
+                                animate opacity { duration: 150ms; }
                             }
                         }
                     }
@@ -566,6 +576,7 @@ export component AppWindow inherits Window {
     in-out property <image> webcam-preview;
     in-out property <[float]> audio-samples;
     in-out property <string> heart-rate-display: "Searching for HR sensor...";
+    in-out property <bool> heart-beat-pulse: false;
 
     init => {
         focus-scope.focus();
@@ -618,6 +629,7 @@ export component AppWindow inherits Window {
                         webcam-preview <=> root.webcam-preview;
                         audio-samples <=> root.audio-samples;
                         heart-rate-display <=> root.heart-rate-display;
+                        heart-beat-pulse <=> root.heart-beat-pulse;
                         start-recording => {
                             root.start-recording();
                         }
