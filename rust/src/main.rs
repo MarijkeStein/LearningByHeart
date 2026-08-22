@@ -325,12 +325,21 @@ fn start_audio_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc<Ato
             }
 
             // Drain all samples collected since last tick; compute peak for this window.
-            let window_peak = {
+            // Returns None if the buffer was empty (stream just resumed, no audio yet).
+            let window_peak: Option<f32> = {
                 let mut buf = pending.lock().unwrap();
-                let peak = buf.iter().copied().fold(0.0f32, f32::max);
-                buf.clear();
-                peak
+                if buf.is_empty() {
+                    None
+                } else {
+                    let peak = buf.iter().copied().fold(0.0f32, f32::max);
+                    buf.clear();
+                    Some(peak)
+                }
             };
+
+            // Skip this tick if no audio arrived yet — avoids pushing 0.0 into
+            // floor_buf right after stream resume, which would corrupt the floor.
+            let Some(window_peak) = window_peak else { continue };
 
             // Update noise floor: running minimum over the last 150 ticks (~10 s).
             floor_buf.push_back(window_peak);
