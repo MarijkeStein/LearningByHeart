@@ -1,27 +1,10 @@
 slint::include_modules!();
 
-use chrono::Local;
-use cpal::traits::{HostTrait, StreamTrait};
 use muda::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use nokhwa::pixel_format::RgbFormat;
-use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
-use slint::{Image, Rgb8Pixel, SharedPixelBuffer};
-use std::io::Write;
-use std::sync::{Arc, Mutex};
-
-struct RawFrame {
-    data: Vec<u8>,
-    width: u32,
-    height: u32,
-}
-
-struct AudioInfo {
-    sample_rate: u32,
-    channels: u16,
-}
 
 // Held for the duration of a recording; dropping it closes the channels and
 // signals the writer threads to finalize their files.
+#[allow(dead_code)]
 #[derive(Clone)]
 struct Recording {
     #[allow(dead_code)]
@@ -155,11 +138,6 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     start_menu_event_handler(quit_item_id);
-
-    // Shared state: current active recording (None when idle).
-    let recording_state: Arc<Mutex<Option<Recording>>> = Arc::new(Mutex::new(None));
-    // Audio device info, set once the audio thread initializes.
-    let audio_info: Arc<Mutex<Option<AudioInfo>>> = Arc::new(Mutex::new(None));
 
     let app = AppWindow::new()?;
     app.window().set_maximized(true);
