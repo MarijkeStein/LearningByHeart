@@ -1,6 +1,11 @@
 slint::include_modules!();
 
 use muda::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use nokhwa::pixel_format::RgbFormat;
+use nokhwa::utils::{CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
+use slint::{Image, Rgb8Pixel, SharedPixelBuffer};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Held for the duration of a recording; dropping it closes the channels and
 // signals the writer threads to finalize their files.
@@ -13,48 +18,6 @@ struct Recording {
 
 // Cargo passes settings from Cargo.toml as env. variable to compiler
 const LBH_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// fn create_no_camera_image(width: u32, height: u32) -> Image {
-//     let mut pixel_data = vec![0u8; (width * height * 3) as usize];
-//
-//     for chunk in pixel_data.chunks_mut(3) {
-//         chunk[0] = 60;
-//         chunk[1] = 60;
-//         chunk[2] = 60;
-//     }
-//
-//     let border_width = 3;
-//     let cross_width = 4;
-//
-//     for y in 0..height {
-//         for x in 0..width {
-//             let is_border = x < border_width || x >= width - border_width
-//                 || y < border_width || y >= height - border_width;
-//             if is_border {
-//                 let idx = ((y * width + x) * 3) as usize;
-//                 pixel_data[idx] = 180;
-//                 pixel_data[idx + 1] = 180;
-//                 pixel_data[idx + 2] = 180;
-//             }
-//         }
-//     }
-//
-//     for y in 0..height {
-//         for x in 0..width {
-//             let diag1 = (x as i32 - y as i32).abs() < cross_width as i32;
-//             let diag2 = (x as i32 - (height as i32 - 1 - y as i32)).abs() < cross_width as i32;
-//             if diag1 || diag2 {
-//                 let idx = ((y * width + x) * 3) as usize;
-//                 pixel_data[idx] = 200;
-//                 pixel_data[idx + 1] = 60;
-//                 pixel_data[idx + 2] = 60;
-//             }
-//         }
-//     }
-//
-//     let buffer = SharedPixelBuffer::<Rgb8Pixel>::clone_from_slice(&pixel_data, width, height);
-//     Image::from_rgb8(buffer)
-// }
 
 fn create_menu() -> (Menu, muda::MenuId) {
     let menu = Menu::new();
@@ -113,19 +76,98 @@ fn mood_name(id: i32) -> &'static str {
     }
 }
 
-// fn write_session_json(dir: &std::path::Path, mood_id: i32, timestamp: &str) {
-//     let name = mood_name(mood_id);
-//     let json = format!(
-//         "{{\n  \"recorded_at\": \"{}\",\n  \"mood_id\": {},\n  \"mood_name\": \"{}\"\n}}\n",
-//         timestamp, mood_id, name
-//     );
-//     let path = dir.join("mood.json");
-//     if let Err(e) = std::fs::write(&path, json) {
-//         eprintln!("Failed to write session.json: {}", e);
-//     } else {
-//         println!("Mood state saved to {:?}", path);
-//     }
-// }
+/// Spawns a background thread that continuously captures frames from the default
+/// webcam and pushes them to the UI via Slint's event loop.
+///
+/// `capture_active` controls whether the thread actually grabs frames; when false
+/// the thread sleeps cheaply, allowing the sensor to stay warm for a fast resume.
+/// The thread exits automatically once the Slint event loop is gone.
+fn start_webcam_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc<AtomicBool>) {
+    std::thread::spawn(move || {
+        // Request 640×480 MJPEG at 15 fps — widely supported and low-energy.
+        // nokhwa picks the closest available format if the camera can't match exactly.
+        let requested = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Closest(
+            CameraFormat::new(Resolution::new(640, 480), FrameFormat::MJPEG, 15),
+        ));
+
+        let mut camera = match nokhwa::Camera::new(CameraIndex::Index(0), requested) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Webcam unavailable: {e}");
+                // Uncheck the camera toggle so the UI shows "Camera disabled"
+                let _ = slint::invoke_from_event_loop({
+                    let weak = app_weak.clone();
+                    move || {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_video_enabled(false);
+                        }
+                    }
+                });
+                return;
+            }
+        };
+
+        if let Err(e) = camera.open_stream() {
+            eprintln!("Failed to open webcam stream: {e}");
+            let _ = slint::invoke_from_event_loop({
+                let weak = app_weak.clone();
+                move || {
+                    if let Some(app) = weak.upgrade() {
+                        app.set_video_enabled(false);
+                    }
+                }
+            });
+            return;
+        }
+
+        // Cap at 15 fps regardless of what the camera actually runs at.
+        let frame_interval = std::time::Duration::from_millis(67);
+
+        loop {
+            if !capture_active.load(Ordering::Relaxed) {
+                // Sleep cheaply; sensor stays warm for instant resume.
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                continue;
+            }
+
+            let t = std::time::Instant::now();
+
+            match camera.frame() {
+                Ok(frame) => {
+                    match frame.decode_image::<RgbFormat>() {
+                        Ok(decoded) => {
+                            let width = decoded.width();
+                            let height = decoded.height();
+                            let raw: Vec<u8> = decoded.into_raw();
+
+                            let weak = app_weak.clone();
+                            let result = slint::invoke_from_event_loop(move || {
+                                if let Some(app) = weak.upgrade() {
+                                    let buf = SharedPixelBuffer::<Rgb8Pixel>::clone_from_slice(
+                                        &raw, width, height,
+                                    );
+                                    app.set_webcam_preview(Image::from_rgb8(buf));
+                                }
+                            });
+                            if result.is_err() {
+                                break; // Event loop is gone — app is closing.
+                            }
+                        }
+                        Err(e) => eprintln!("Webcam decode error: {e}"),
+                    }
+                }
+                Err(e) => eprintln!("Webcam capture error: {e}"),
+            }
+
+            let elapsed = t.elapsed();
+            if elapsed < frame_interval {
+                std::thread::sleep(frame_interval - elapsed);
+            }
+        }
+
+        let _ = camera.stop_stream();
+    });
+}
 
 fn main() -> Result<(), slint::PlatformError> {
     println!("LBH version {} on {}", LBH_VERSION, std::env::consts::OS);
@@ -144,6 +186,14 @@ fn main() -> Result<(), slint::PlatformError> {
 
     app.on_mood_voted(|mood_id| {
         println!("Mood selected: {} (ID: {})", mood_name(mood_id), mood_id);
+    });
+
+    // Start webcam preview; initial state mirrors the UI default (video-enabled = true).
+    let capture_active = Arc::new(AtomicBool::new(app.get_video_enabled()));
+    start_webcam_preview(app.as_weak(), capture_active.clone());
+
+    app.on_video_enabled_changed(move |enabled| {
+        capture_active.store(enabled, Ordering::Relaxed);
     });
 
     app.run()

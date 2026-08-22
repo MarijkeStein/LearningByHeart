@@ -190,6 +190,7 @@ component RecordingPanel inherits Rectangle {
 
     callback start-recording();
     callback stop-recording();
+    callback video-enabled-changed(bool);
 
     background: #f5f5f5;
 
@@ -278,6 +279,9 @@ component RecordingPanel inherits Rectangle {
                             text: "Camera";
                             checked <=> root.video-enabled;
                             enabled: !root.is-recording;
+                            toggled => {
+                                root.video-enabled-changed(self.checked);
+                            }
                         }
                     }
 
@@ -552,6 +556,7 @@ export component AppWindow inherits Window {
     callback mood-voted(int);
     callback start-recording();
     callback stop-recording();
+    callback video-enabled-changed(bool);
 
     in-out property <int> current-tab-index: 0;
     in-out property <int> selected-mood-id: 0;
@@ -617,6 +622,9 @@ export component AppWindow inherits Window {
                         }
                         stop-recording => {
                             root.stop-recording();
+                        }
+                        video-enabled-changed(enabled) => {
+                            root.video-enabled-changed(enabled);
                         }
                     }
                 }
