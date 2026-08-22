@@ -1,4 +1,4 @@
-import { Button, VerticalBox, HorizontalBox, TabWidget, CheckBox, GroupBox } from "std-widgets.slint";
+import { Button, VerticalBox, HorizontalBox, TabWidget, CheckBox, GroupBox, ComboBox } from "std-widgets.slint";
 
 component MoodButton inherits Rectangle {
     in property <string> emoji;
@@ -545,6 +545,45 @@ component MoodVotingPanel inherits Rectangle {
     }
 }
 
+component ResearchPanel inherits Rectangle {
+    in property <[string]> recordings;
+
+    background: #f5f5f5;
+
+    VerticalBox {
+        padding: 30px;
+        spacing: 20px;
+        alignment: start;
+
+        GroupBox {
+            title: "Experiment Analysis";
+
+            HorizontalBox {
+                spacing: 12px;
+                alignment: start;
+                padding: 10px;
+
+                Text {
+                    text: "Select a recording:";
+                    font-size: 14px;
+                    vertical-alignment: center;
+                }
+
+                ComboBox {
+                    model: root.recordings;
+                    width: 420px;
+                }
+            }
+        }
+
+        Rectangle {
+            width: 960px;
+            height: 540px;
+            background: black;
+        }
+    }
+}
+
 export component AppWindow inherits Window {
     title: "Learning By Heart (LBH)";
     preferred-width: 1280px;
@@ -564,6 +603,7 @@ export component AppWindow inherits Window {
     in-out property <bool> is-recording: false;
     in-out property <image> webcam-preview;
     in-out property <[float]> audio-samples;
+    in-out property <[string]> recordings-list;
 
     init => {
         focus-scope.focus();
@@ -575,12 +615,12 @@ export component AppWindow inherits Window {
         key-pressed(event) => {
             // Ctrl+Tab to switch to next tab (using Key enum)
             if (event.modifiers.control && !event.modifiers.shift && event.text == Key.Tab) {
-                root.current-tab-index = mod(root.current-tab-index + 1, 2);
+                root.current-tab-index = mod(root.current-tab-index + 1, 3);
                 return accept;
             }
             // Ctrl+Shift+Tab to switch to previous tab
             if (event.modifiers.control && event.modifiers.shift && event.text == Key.Tab) {
-                root.current-tab-index = mod(root.current-tab-index - 1 + 2, 2);
+                root.current-tab-index = mod(root.current-tab-index - 1 + 3, 3);
                 return accept;
             }
             return reject;
@@ -607,7 +647,7 @@ export component AppWindow inherits Window {
                 }
 
                 Tab {
-                    title: "Recording Panel";
+                    title: "Record Panel";
                     RecordingPanel {
                         video-enabled <=> root.video-enabled;
                         microphone-enabled <=> root.microphone-enabled;
@@ -627,6 +667,13 @@ export component AppWindow inherits Window {
                         microphone-enabled-changed(enabled) => {
                             root.microphone-enabled-changed(enabled);
                         }
+                    }
+                }
+
+                Tab {
+                    title: "Research Panel";
+                    ResearchPanel {
+                        recordings: root.recordings-list;
                     }
                 }
             }
