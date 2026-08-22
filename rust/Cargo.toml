@@ -1,0 +1,15 @@
+[package]
+name = "lbh"
+version = "0.3.0"
+edition = "2024"
+
+[dependencies]
+slint = "1.17.1"
+muda = "0.19.0"
+nokhwa = { version = "0.10.11", features = ["input-native"] }
+cpal = "0.18.0"
+hound = "3.5.1"
+chrono = "0.4.45"
+
+[build-dependencies]
+slint-build = "1.17.1"

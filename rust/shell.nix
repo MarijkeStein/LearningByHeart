@@ -46,9 +46,6 @@ pkgs.mkShell {
 
   # Pull in the Rust toolchain + your dependencies
   buildInputs = with pkgs; [
-    rustc
-    cargo
-    rustfmt
     clippy
   ] ++ buildDeps;
 
