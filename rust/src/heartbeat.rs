@@ -97,6 +97,21 @@ fn push_display(app_weak: &slint::Weak<AppWindow>, text: &str) -> bool {
     .is_ok()
 }
 
+fn push_sensor_found(app_weak: &slint::Weak<AppWindow>, found: bool) -> bool {
+    slint::invoke_from_event_loop({
+        let weak = app_weak.clone();
+        move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_heartbeat_sensor_found(found);
+                if found {
+                    app.set_heartbeat_enabled(true);
+                }
+            }
+        }
+    })
+    .is_ok()
+}
+
 fn push_pulse(app_weak: &slint::Weak<AppWindow>) {
     let weak = app_weak.clone();
     let _ = slint::invoke_from_event_loop(move || {
@@ -187,6 +202,7 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>) {
         if !push_display(&app_weak, "Scanning for HR sensor...") {
             return;
         }
+        push_sensor_found(&app_weak, false);
         eprintln!("Scanning for HR sensor {DEVICE_MAC} ({SCAN_SECS}s)...");
 
         let peripheral = match find_hr_peripheral(&adapter).await {
@@ -230,6 +246,7 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>) {
         }
 
         eprintln!("HR sensor connected, receiving data");
+        push_sensor_found(&app_weak, true);
 
         let mut notifs = match peripheral.notifications().await {
             Ok(s) => s,

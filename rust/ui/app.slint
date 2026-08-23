@@ -176,7 +176,8 @@ component AudioPreview inherits Rectangle {
 component RecordingPanel inherits Rectangle {
     in-out property <bool> video-enabled: true;
     in-out property <bool> microphone-enabled: true;
-    in-out property <bool> heartbeat-enabled: true;
+    in-out property <bool> heartbeat-enabled: false;
+    in-out property <bool> heartbeat-sensor-found: false;
     in-out property <bool> is-recording: false;
     in-out property <image> webcam-preview;
     in-out property <[float]> audio-samples;
@@ -311,7 +312,7 @@ component RecordingPanel inherits Rectangle {
                         CheckBox {
                             text: "Heartbeat Sensor";
                             checked <=> root.heartbeat-enabled;
-                            enabled: false;
+                            enabled: root.heartbeat-sensor-found && !root.is-recording;
                         }
                     }
                 }
@@ -571,7 +572,8 @@ export component AppWindow inherits Window {
     in-out property <int> selected-mood-id: 0;
     in-out property <bool> video-enabled: true;
     in-out property <bool> microphone-enabled: true;
-    in-out property <bool> heartbeat-enabled: true;
+    in-out property <bool> heartbeat-enabled: false;
+    in-out property <bool> heartbeat-sensor-found: false;
     in-out property <bool> is-recording: false;
     in-out property <image> webcam-preview;
     in-out property <[float]> audio-samples;
@@ -625,6 +627,7 @@ export component AppWindow inherits Window {
                         video-enabled <=> root.video-enabled;
                         microphone-enabled <=> root.microphone-enabled;
                         heartbeat-enabled <=> root.heartbeat-enabled;
+                        heartbeat-sensor-found <=> root.heartbeat-sensor-found;
                         is-recording <=> root.is-recording;
                         webcam-preview <=> root.webcam-preview;
                         audio-samples <=> root.audio-samples;
