@@ -4,6 +4,7 @@ use slint::{Image, Rgb8Pixel, SharedPixelBuffer};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::recording::VideoSink;
 use crate::AppWindow;
 
 
@@ -13,7 +14,11 @@ use crate::AppWindow;
 /// `capture_active` controls whether the thread actually grabs frames; when false
 /// the thread sleeps cheaply, allowing the sensor to stay warm for a fast resume.
 /// The thread exits automatically once the Slint event loop is gone.
-pub fn start_webcam_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc<AtomicBool>) {
+pub fn start_webcam_preview(
+    app_weak: slint::Weak<AppWindow>,
+    capture_active: Arc<AtomicBool>,
+    recording_sink: VideoSink,
+) {
     std::thread::spawn(move || {
         // Request 640×480 MJPEG at 15 fps — widely supported and low-energy.
         // nokhwa picks the closest available format if the camera can't match exactly.
@@ -70,6 +75,13 @@ pub fn start_webcam_preview(app_weak: slint::Weak<AppWindow>, capture_active: Ar
                             let width = decoded.width();
                             let height = decoded.height();
                             let raw: Vec<u8> = decoded.into_raw();
+
+                            // Non-blocking send to recording writer.
+                            if let Ok(guard) = recording_sink.try_lock() {
+                                if let Some(tx) = guard.as_ref() {
+                                    let _ = tx.try_send((width, height, raw.clone()));
+                                }
+                            }
 
                             let weak = app_weak.clone();
                             let result = slint::invoke_from_event_loop(move || {

@@ -3,6 +3,7 @@ use btleplug::platform::{Adapter, Manager, Peripheral};
 use futures::StreamExt;
 use uuid::Uuid;
 
+use crate::recording::{HrRecord, HrSink};
 use crate::AppWindow;
 
 // Hardcoded target device MAC address (Linux/BlueZ peripheral ID format)
@@ -71,7 +72,7 @@ fn parse_measurement(data: &[u8]) -> Option<HrMeasurement> {
 /// Spawns a background thread that scans for a Bluetooth heart rate sensor,
 /// connects to it, and streams HR measurements to the UI. Automatically
 /// reconnects if the sensor disconnects.
-pub fn start_heartbeat_monitor(app_weak: slint::Weak<AppWindow>) {
+pub fn start_heartbeat_monitor(app_weak: slint::Weak<AppWindow>, hr_sink: HrSink) {
     std::thread::spawn(move || {
         let rt = match tokio::runtime::Runtime::new() {
             Ok(rt) => rt,
@@ -80,7 +81,7 @@ pub fn start_heartbeat_monitor(app_weak: slint::Weak<AppWindow>) {
                 return;
             }
         };
-        rt.block_on(run_monitor(app_weak));
+        rt.block_on(run_monitor(app_weak, hr_sink));
     });
 }
 
@@ -172,7 +173,7 @@ async fn find_hr_peripheral(adapter: &Adapter) -> Option<Peripheral> {
     target
 }
 
-async fn run_monitor(app_weak: slint::Weak<AppWindow>) {
+async fn run_monitor(app_weak: slint::Weak<AppWindow>, hr_sink: HrSink) {
     let manager = match Manager::new().await {
         Ok(m) => m,
         Err(e) => {
@@ -271,6 +272,18 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>) {
                 eprintln!("HR: {} BPM  RR: {:?} ms", m.bpm, m.rr_intervals_ms);
             } else {
                 eprintln!("HR: {} BPM", m.bpm);
+            }
+
+            // Forward to recording writer if active.
+            if let Ok(guard) = hr_sink.try_lock() {
+                if let Some(tx) = guard.as_ref() {
+                    let record = HrRecord {
+                        timestamp_ms: chrono::Local::now().timestamp_millis(),
+                        bpm: m.bpm,
+                        rr_intervals_ms: m.rr_intervals_ms.clone(),
+                    };
+                    let _ = tx.try_send(record);
+                }
             }
 
             let display = format!("{} BPM", m.bpm);

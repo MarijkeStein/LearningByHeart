@@ -5,15 +5,27 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use crate::recording::AudioSink;
 use crate::AppWindow;
+
+/// Returns the default audio input device's (sample_rate, channel_count), if available.
+pub fn query_default_audio_format() -> Option<(u32, u16)> {
+    let host = cpal::default_host();
+    let device = host.default_input_device()?;
+    let supported = device.default_input_config().ok()?;
+    let config: cpal::StreamConfig = supported.into();
+    Some((config.sample_rate, config.channels))
+}
 
 /// Generic stream builder — converts any `SizedSample` format to f32 in the callback.
 /// Stores per-frame peak (max absolute value across all channels) into `pending`.
+/// When `recording_sink` holds a sender, also forwards raw f32 samples for WAV writing.
 fn build_audio_input_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
     channels: usize,
     pending: Arc<Mutex<Vec<f32>>>,
+    recording_sink: AudioSink,
 ) -> Result<cpal::Stream, cpal::Error>
 where
     T: SizedSample,
@@ -22,11 +34,20 @@ where
     device.build_input_stream(
         *config,
         move |data: &[T], _: &cpal::InputCallbackInfo| {
+            // Convert all samples to f32 once, reuse for both preview and recording.
+            let f32_samples: Vec<f32> = data.iter().map(|&s| f32::from_sample_(s)).collect();
+
+            // Non-blocking send to recording writer; drops chunk on contention or full buffer.
+            if let Ok(guard) = recording_sink.try_lock() {
+                if let Some(tx) = guard.as_ref() {
+                    let _ = tx.try_send(f32_samples.clone());
+                }
+            }
+
+            // Peak detection for the waveform preview.
             let mut buf = pending.lock().unwrap();
-            for frame in data.chunks(channels.max(1)) {
-                let peak = frame.iter()
-                    .map(|&s| f32::from_sample_(s).abs())
-                    .fold(0.0f32, f32::max);
+            for frame in f32_samples.chunks(channels.max(1)) {
+                let peak = frame.iter().copied().fold(0.0f32, f32::max);
                 buf.push(peak);
             }
             // Prevent unbounded growth if the display thread falls behind.
@@ -49,7 +70,11 @@ where
 ///
 /// `capture_active` mirrors the microphone-enabled checkbox. When false the
 /// stream is paused (hardware stays idle) and the waveform is cleared.
-pub fn start_audio_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc<AtomicBool>) {
+pub fn start_audio_preview(
+    app_weak: slint::Weak<AppWindow>,
+    capture_active: Arc<AtomicBool>,
+    recording_sink: AudioSink,
+) {
     std::thread::spawn(move || {
         let host = cpal::default_host();
 
@@ -82,12 +107,12 @@ pub fn start_audio_preview(app_weak: slint::Weak<AppWindow>, capture_active: Arc
         let pending: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::with_capacity(4096)));
 
         let stream = match supported.sample_format() {
-            SampleFormat::F32 => build_audio_input_stream::<f32>(&device, &config, channels, pending.clone()),
-            SampleFormat::I16 => build_audio_input_stream::<i16>(&device, &config, channels, pending.clone()),
-            SampleFormat::I32 => build_audio_input_stream::<i32>(&device, &config, channels, pending.clone()),
-            SampleFormat::U16 => build_audio_input_stream::<u16>(&device, &config, channels, pending.clone()),
-            SampleFormat::U32 => build_audio_input_stream::<u32>(&device, &config, channels, pending.clone()),
-            SampleFormat::F64 => build_audio_input_stream::<f64>(&device, &config, channels, pending.clone()),
+            SampleFormat::F32 => build_audio_input_stream::<f32>(&device, &config, channels, pending.clone(), recording_sink.clone()),
+            SampleFormat::I16 => build_audio_input_stream::<i16>(&device, &config, channels, pending.clone(), recording_sink.clone()),
+            SampleFormat::I32 => build_audio_input_stream::<i32>(&device, &config, channels, pending.clone(), recording_sink.clone()),
+            SampleFormat::U16 => build_audio_input_stream::<u16>(&device, &config, channels, pending.clone(), recording_sink.clone()),
+            SampleFormat::U32 => build_audio_input_stream::<u32>(&device, &config, channels, pending.clone(), recording_sink.clone()),
+            SampleFormat::F64 => build_audio_input_stream::<f64>(&device, &config, channels, pending.clone(), recording_sink.clone()),
             fmt => {
                 eprintln!("Unsupported audio sample format: {fmt:?}");
                 let _ = slint::invoke_from_event_loop({
