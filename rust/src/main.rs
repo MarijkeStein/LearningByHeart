@@ -14,16 +14,6 @@ const LBH_VERSION: &str = env!("CARGO_PKG_VERSION");
 fn main() -> Result<(), slint::PlatformError> {
     println!("LBH version {} on {}", LBH_VERSION, std::env::consts::OS);
 
-    #[allow(unused_variables)]
-    let (menu, quit_item_id) = gui::create_menu();
-
-    #[cfg(target_os = "macos")]
-    {
-        menu.init_for_nsapp();
-    }
-
-    gui::start_menu_event_handler(quit_item_id);
-
     let app = AppWindow::new()?;
     app.window().set_maximized(true);
 

@@ -1,1 +1,8 @@
 rustup run stable cargo build
+
+The cleaner fix is to put ~/.cargo/bin earlier in your PATH than /run/current-system/sw/bin, so the rustup shim takes priority. Since you're using fish, add this to ~/.config/fish/config.fish:
+
+fish_add_path ~/.cargo/bin
+
+After that, a new shell will resolve cargo to the rustup shim first, which respects rust-toolchain.toml and the active toolchain. You can then also restore rust-toolchain.toml to pin the project to stable explicitly.
+
