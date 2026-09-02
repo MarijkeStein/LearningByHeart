@@ -363,8 +363,15 @@ component RecordingPanel inherits Rectangle {
                     height: 12px;
                     border-radius: 6px;
                     background: #e53935;
+                    property <bool> dot-on: true;
+                    opacity: self.dot-on ? 1.0 : 0.0;
+                    animate opacity { duration: 120ms; }
 
-                    animate background { duration: 500ms; easing: ease-in-out; iteration-count: -1; }
+                    Timer {
+                        interval: 600ms;
+                        running: true;
+                        triggered => { dot-on = !dot-on; }
+                    }
                 }
 
                 Text {
