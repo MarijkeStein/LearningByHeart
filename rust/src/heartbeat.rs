@@ -85,19 +85,6 @@ pub fn start_heartbeat_monitor(app_weak: slint::Weak<AppWindow>, hr_sink: HrSink
     });
 }
 
-fn push_display(app_weak: &slint::Weak<AppWindow>, text: &str) -> bool {
-    let owned = text.to_owned();
-    slint::invoke_from_event_loop({
-        let weak = app_weak.clone();
-        move || {
-            if let Some(app) = weak.upgrade() {
-                app.set_heart_rate_display(owned.into());
-            }
-        }
-    })
-    .is_ok()
-}
-
 fn push_sensor_found(app_weak: &slint::Weak<AppWindow>, found: bool) -> bool {
     slint::invoke_from_event_loop({
         let weak = app_weak.clone();
@@ -124,7 +111,7 @@ fn push_pulse(app_weak: &slint::Weak<AppWindow>) {
     tokio::spawn(async move {
         // Hold long enough for the font-size animation to finish growing before
         // it starts shrinking back; 200 ms keeps each bump crisp and separate.
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(400)).await;
         let _ = slint::invoke_from_event_loop(move || {
             if let Some(app) = weak.upgrade() {
                 app.set_heart_beat_pulse(false);
@@ -138,7 +125,7 @@ fn push_pulse(app_weak: &slint::Weak<AppWindow>) {
 /// sensor does not report R-R data.
 fn push_rr_pulses(app_weak: &slint::Weak<AppWindow>, rr_intervals_ms: &[u16]) {
     if rr_intervals_ms.is_empty() {
-        // No RR intervals means no detected heartbeat — keep the heart still.
+        push_pulse(app_weak);
         return;
     }
     let mut offset_ms: u64 = 0;
@@ -203,7 +190,6 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>, hr_sink: HrSink) {
         Ok(m) => m,
         Err(e) => {
             eprintln!("Bluetooth unavailable: {e}");
-            push_display(&app_weak, "Bluetooth not available");
             return;
         }
     };
@@ -212,12 +198,10 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>, hr_sink: HrSink) {
         Ok(a) if !a.is_empty() => a,
         Ok(_) => {
             eprintln!("No Bluetooth adapter found");
-            push_display(&app_weak, "No Bluetooth adapter");
             return;
         }
         Err(e) => {
             eprintln!("Bluetooth adapter error: {e}");
-            push_display(&app_weak, "Bluetooth error");
             return;
         }
     };
@@ -225,9 +209,6 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>, hr_sink: HrSink) {
     let adapter = adapters.into_iter().next().unwrap();
 
     loop {
-        if !push_display(&app_weak, "Scanning for HR sensor...") {
-            return;
-        }
         push_sensor_found(&app_weak, false);
         eprintln!("Scanning for HR sensor {DEVICE_MAC} ({SCAN_SECS}s)...");
 
@@ -293,6 +274,10 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>, hr_sink: HrSink) {
                 continue;
             };
 
+            if m.bpm == 0 {
+                continue; // sensor not locked onto a heartbeat yet
+            }
+
             if !m.rr_intervals_ms.is_empty() {
                 eprintln!("HR: {} BPM  RR: {:?} ms", m.bpm, m.rr_intervals_ms);
             } else {
@@ -311,10 +296,6 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>, hr_sink: HrSink) {
                 }
             }
 
-            let display = format!("{} BPM", m.bpm);
-            if !push_display(&app_weak, &display) {
-                return; // event loop gone — app is closing
-            }
             push_rr_pulses(&app_weak, &m.rr_intervals_ms);
         }
 

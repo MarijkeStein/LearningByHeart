@@ -181,7 +181,6 @@ component RecordingPanel inherits Rectangle {
     in-out property <bool> is-recording: false;
     in-out property <image> webcam-preview;
     in-out property <[float]> audio-samples;
-    in-out property <string> heart-rate-display: "Searching for HR sensor...";
     in-out property <bool> heart-beat-pulse: false;
 
     callback start-recording();
@@ -257,21 +256,22 @@ component RecordingPanel inherits Rectangle {
                             width: 320px;
                             height: 180px;
                             Text {
-                                text: root.heart-rate-display;
+                                text: "Searching for HR sensor...";
                                 color: #555555;
                                 font-size: 14px;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
+                                opacity: root.heartbeat-sensor-found ? 0.0 : 1.0;
+                                animate opacity { duration: 400ms; }
                             }
                             Text {
                                 text: "❤️";
-                                font-size: root.heart-beat-pulse ? 85px : 64px;
+                                font-size: 64px;
                                 font-family: "Noto Color Emoji";
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
-                                opacity: root.heartbeat-sensor-found ? 1.0 : 0.0;
-                                animate font-size { duration: 300ms; easing: ease-out; }
-                                animate opacity { duration: 400ms; }
+                                opacity: root.heart-beat-pulse ? 1.0 : 0.0;
+                                animate opacity { duration: 200ms; easing: ease-in-out; }
                             }
                         }
                     }
@@ -578,7 +578,6 @@ export component AppWindow inherits Window {
     in-out property <bool> is-recording: false;
     in-out property <image> webcam-preview;
     in-out property <[float]> audio-samples;
-    in-out property <string> heart-rate-display: "Searching for HR sensor...";
     in-out property <bool> heart-beat-pulse: false;
 
     init => {
@@ -632,7 +631,6 @@ export component AppWindow inherits Window {
                         is-recording <=> root.is-recording;
                         webcam-preview <=> root.webcam-preview;
                         audio-samples <=> root.audio-samples;
-                        heart-rate-display <=> root.heart-rate-display;
                         heart-beat-pulse <=> root.heart-beat-pulse;
                         start-recording => {
                             root.start-recording();
