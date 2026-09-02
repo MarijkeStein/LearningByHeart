@@ -56,13 +56,17 @@ pub fn start_webcam_preview(
             return;
         }
 
-        // Cap at 15 fps regardless of what the camera actually runs at.
-        let frame_interval = std::time::Duration::from_millis(67);
+        // Capture at 15 fps; push a preview frame to the UI at 5 fps only.
+        const CAPTURE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(67);
+        const PREVIEW_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
+        let mut last_preview = std::time::Instant::now()
+            .checked_sub(PREVIEW_INTERVAL)
+            .unwrap_or_else(std::time::Instant::now);
 
         loop {
             if !capture_active.load(Ordering::Relaxed) {
                 // Sleep cheaply; sensor stays warm for instant resume.
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                std::thread::sleep(std::time::Duration::from_millis(200));
                 continue;
             }
 
@@ -83,17 +87,21 @@ pub fn start_webcam_preview(
                                 }
                             }
 
-                            let weak = app_weak.clone();
-                            let result = slint::invoke_from_event_loop(move || {
-                                if let Some(app) = weak.upgrade() {
-                                    let buf = SharedPixelBuffer::<Rgb8Pixel>::clone_from_slice(
-                                        &raw, width, height,
-                                    );
-                                    app.set_webcam_preview(Image::from_rgb8(buf));
+                            // Push preview at 5 fps regardless of capture rate.
+                            if last_preview.elapsed() >= PREVIEW_INTERVAL {
+                                last_preview = std::time::Instant::now();
+                                let weak = app_weak.clone();
+                                let result = slint::invoke_from_event_loop(move || {
+                                    if let Some(app) = weak.upgrade() {
+                                        let buf = SharedPixelBuffer::<Rgb8Pixel>::clone_from_slice(
+                                            &raw, width, height,
+                                        );
+                                        app.set_webcam_preview(Image::from_rgb8(buf));
+                                    }
+                                });
+                                if result.is_err() {
+                                    break; // Event loop is gone — app is closing.
                                 }
-                            });
-                            if result.is_err() {
-                                break; // Event loop is gone — app is closing.
                             }
                         }
                         Err(e) => eprintln!("Webcam decode error: {e}"),
@@ -103,8 +111,8 @@ pub fn start_webcam_preview(
             }
 
             let elapsed = t.elapsed();
-            if elapsed < frame_interval {
-                std::thread::sleep(frame_interval - elapsed);
+            if elapsed < CAPTURE_INTERVAL {
+                std::thread::sleep(CAPTURE_INTERVAL - elapsed);
             }
         }
 
