@@ -265,12 +265,13 @@ component RecordingPanel inherits Rectangle {
                             }
                             Text {
                                 text: "❤️";
-                                font-size: 64px;
+                                font-size: root.heart-beat-pulse ? 85px : 64px;
                                 font-family: "Noto Color Emoji";
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
-                                opacity: root.heart-beat-pulse ? 1.0 : 0.0;
-                                animate opacity { duration: 150ms; }
+                                opacity: root.heartbeat-sensor-found ? 1.0 : 0.0;
+                                animate font-size { duration: 300ms; easing: ease-out; }
+                                animate opacity { duration: 400ms; }
                             }
                         }
                     }

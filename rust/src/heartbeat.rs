@@ -122,13 +122,38 @@ fn push_pulse(app_weak: &slint::Weak<AppWindow>) {
     });
     let weak = app_weak.clone();
     tokio::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        // Hold long enough for the font-size animation to finish growing before
+        // it starts shrinking back; 200 ms keeps each bump crisp and separate.
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         let _ = slint::invoke_from_event_loop(move || {
             if let Some(app) = weak.upgrade() {
                 app.set_heart_beat_pulse(false);
             }
         });
     });
+}
+
+/// Schedule one visual pulse per R-R interval so the heart bumps in sync with
+/// each actual heartbeat. Falls back to one pulse per notification if the
+/// sensor does not report R-R data.
+fn push_rr_pulses(app_weak: &slint::Weak<AppWindow>, rr_intervals_ms: &[u16]) {
+    if rr_intervals_ms.is_empty() {
+        // No RR intervals means no detected heartbeat — keep the heart still.
+        return;
+    }
+    let mut offset_ms: u64 = 0;
+    for &rr in rr_intervals_ms {
+        if offset_ms == 0 {
+            push_pulse(app_weak);
+        } else {
+            let weak = app_weak.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(offset_ms)).await;
+                push_pulse(&weak);
+            });
+        }
+        offset_ms += rr as u64;
+    }
 }
 
 async fn find_hr_peripheral(adapter: &Adapter) -> Option<Peripheral> {
@@ -290,7 +315,7 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>, hr_sink: HrSink) {
             if !push_display(&app_weak, &display) {
                 return; // event loop gone — app is closing
             }
-            push_pulse(&app_weak);
+            push_rr_pulses(&app_weak, &m.rr_intervals_ms);
         }
 
         eprintln!("HR sensor disconnected; reconnecting in {RETRY_SECS}s");
