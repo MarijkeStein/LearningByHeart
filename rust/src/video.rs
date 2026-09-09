@@ -20,10 +20,10 @@ pub fn start_webcam_preview(
     recording_sink: VideoSink,
 ) {
     std::thread::spawn(move || {
-        // Request 640×480 MJPEG at 15 fps — widely supported and low-energy.
+        // Request 1920×1080 MJPEG at 15 fps for full-HD recording.
         // nokhwa picks the closest available format if the camera can't match exactly.
         let requested = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Closest(
-            CameraFormat::new(Resolution::new(640, 480), FrameFormat::MJPEG, 15),
+            CameraFormat::new(Resolution::new(1920, 1080), FrameFormat::MJPEG, 15),
         ));
 
         let mut camera = match nokhwa::Camera::new(CameraIndex::Index(0), requested) {
