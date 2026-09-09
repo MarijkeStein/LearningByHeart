@@ -41,7 +41,6 @@ pub fn start_recording(
     hr_sink:           &HrSink,
     video_enabled:     bool,
     audio_enabled:     bool,
-    hr_enabled:        bool,
 ) -> std::io::Result<ActiveRecording> {
     std::fs::create_dir_all(&dir)?;
 
@@ -68,7 +67,9 @@ pub fn start_recording(
         rec._audio_tx = Some(tx);
     }
 
-    if hr_enabled {
+    // Always set up the HR writer so data is captured even when the sensor
+    // connects after recording has already started.
+    {
         let (tx, rx) = mpsc::sync_channel::<HrRecord>(1024);
         let path = dir.join("heartbeat.json");
         thread::spawn(move || write_heartbeat(rx, path));
@@ -171,22 +172,32 @@ fn write_audio(rx: mpsc::Receiver<Vec<f32>>, path: PathBuf, sample_rate: u32, ch
         }
     };
 
+    let mut samples_written: u64 = 0;
     for chunk in rx {
         for sample in chunk {
             if let Err(e) = writer.write_sample(sample) {
                 eprintln!("Audio recording: write error: {e}");
                 return;
             }
+            samples_written += 1;
         }
     }
 
     if let Err(e) = writer.finalize() {
         eprintln!("Audio recording: failed to finalise WAV: {e}");
     }
+
+    if samples_written == 0 {
+        let _ = std::fs::remove_file(&path);
+    }
 }
 
 fn write_heartbeat(rx: mpsc::Receiver<HrRecord>, path: PathBuf) {
     let records: Vec<HrRecord> = rx.into_iter().collect();
+
+    if records.is_empty() {
+        return;
+    }
 
     let mut json = String::from("[\n");
     for (i, r) in records.iter().enumerate() {

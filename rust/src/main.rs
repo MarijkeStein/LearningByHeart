@@ -67,7 +67,6 @@ fn main() -> Result<(), slint::PlatformError> {
 
             let video_enabled = app.get_video_enabled();
             let audio_enabled = app.get_microphone_enabled();
-            let hr_enabled    = app.get_heartbeat_enabled();
 
             let timestamp = chrono::Local::now().format("%Y-%m-%dT%H-%M-%S").to_string();
             let dir = std::path::PathBuf::from("../recordings").join(&timestamp);
@@ -83,7 +82,6 @@ fn main() -> Result<(), slint::PlatformError> {
                 &hr_sink,
                 video_enabled,
                 audio_enabled,
-                hr_enabled,
             ) {
                 Ok(rec) => {
                     eprintln!("Recording started: {}", rec.dir.display());
