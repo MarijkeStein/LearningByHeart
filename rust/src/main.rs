@@ -17,6 +17,24 @@ fn main() -> Result<(), slint::PlatformError> {
     let app = AppWindow::new()?;
     app.window().set_maximized(true);
 
+    // Populate the recordings combobox from ../recordings subdirectories.
+    {
+        let recordings_dir = std::path::Path::new("../recordings");
+        let mut names: Vec<slint::SharedString> = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(recordings_dir) {
+            for entry in entries.flatten() {
+                if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                    if let Some(name) = entry.file_name().to_str() {
+                        names.push(name.into());
+                    }
+                }
+            }
+        }
+        names.sort();
+        let model = std::rc::Rc::new(slint::VecModel::from(names));
+        app.set_recording_names(model.into());
+    }
+
     app.on_mood_voted(|mood_id| {
         println!("Mood selected: {} (ID: {})", gui::mood_name(mood_id), mood_id);
     });
