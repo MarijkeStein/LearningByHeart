@@ -385,6 +385,12 @@ component RecordingPanel inherits Rectangle {
     }
 }
 
+component ResearchCenterPanel inherits Rectangle {
+
+    background: #f5f5f5;
+}
+
+
 component MoodVotingPanel inherits Rectangle {
     callback mood-voted(int);
 
@@ -651,6 +657,12 @@ export component AppWindow inherits Window {
                         microphone-enabled-changed(enabled) => {
                             root.microphone-enabled-changed(enabled);
                         }
+                    }
+                }
+
+                Tab {
+                    title: "Research Center";
+                    ResearchCenterPanel {
                     }
                 }
             }
