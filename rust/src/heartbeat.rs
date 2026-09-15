@@ -6,8 +6,7 @@ use uuid::Uuid;
 use crate::recording::{HrRecord, HrSink};
 use crate::AppWindow;
 
-// Hardcoded target device MAC address (Linux/BlueZ peripheral ID format)
-const DEVICE_MAC: &str = "F0:13:C3:EE:F2:A8";
+const DEVICE_NAME: &str = "TICKR FIT 7C01";
 
 // Bluetooth SIG GATT UUIDs for heart rate
 const HEART_RATE_SERVICE_UUID: Uuid =
@@ -172,11 +171,8 @@ async fn find_hr_peripheral(adapter: &Adapter) -> Option<Peripheral> {
             .as_ref()
             .and_then(|pr| pr.local_name.as_deref())
             .unwrap_or("<unnamed>");
-        let id = p.id().to_string();
-        // BlueZ peripheral IDs look like "hci0/dev_F0_13_C3_EE_F2_A8"
-        let mac_fragment = DEVICE_MAC.replace(':', "_");
-        let is_target = id.to_ascii_uppercase().contains(&mac_fragment.to_ascii_uppercase());
-        eprintln!("  HR device: {name} [{id}]{}", if is_target { " ← target" } else { "" });
+        let is_target = name == DEVICE_NAME;
+        eprintln!("  HR device: {name} [{}]{}", p.id(), if is_target { " ← target" } else { "" });
         if is_target {
             target = Some(p);
         }
@@ -210,7 +206,7 @@ async fn run_monitor(app_weak: slint::Weak<AppWindow>, hr_sink: HrSink) {
 
     loop {
         push_sensor_found(&app_weak, false);
-        eprintln!("Scanning for HR sensor {DEVICE_MAC} ({SCAN_SECS}s)...");
+        eprintln!("Scanning for HR sensor \"{DEVICE_NAME}\" ({SCAN_SECS}s)...");
 
         let peripheral = match find_hr_peripheral(&adapter).await {
             Some(p) => p,
